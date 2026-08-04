@@ -1,0 +1,85 @@
+---
+// src/components/ServiceGrid.astro
+// ============================================================================
+// Contenedor de grid adaptativo (CSS Grid) para las tarjetas de servicios.
+// Recibe un array de servicios y renderiza un MetricCard por cada uno.
+// Usa CSS Grid nativo via clase .service-grid (definida en global.css).
+// ============================================================================
+
+import MetricCard from './MetricCard.astro';
+
+interface Props {
+  services: Array<{
+    name: string;
+    url: string;
+    status: 'up' | 'degraded' | 'down';
+    statusCode: number | null;
+    probes: { total: number; succeeded: number; availability: number };
+    latencyMs: { avg: number | null; min: number | null; max: number | null } | null;
+    lastError: string | null;
+    checkedAt: string;
+  }>;
+  isLoading?: boolean;
+}
+
+const { services, isLoading = false } = Astro.props;
+---
+
+<!--
+  .service-grid usa CSS Grid con media queries (definido en global.css):
+  - Mobile (<640px): 1 columna
+  - Tablet (640-1023px): 2 columnas
+  - Desktop (1024-1279px): 3 columnas
+  - XL (>=1280px): 4 columnas
+  gap-4/gap-6: separación responsive
+  .stagger-in: anima entrada escalonada (fade-in con delay)
+-->
+<div
+  id="service-grid"
+  class="service-grid stagger-in"
+  role="list"
+  aria-label="Lista de servicios monitorizados"
+  data-loading={isLoading}
+>
+  {services.length === 0 ? (
+    <!-- Estado vacío: ningún servicio configurado -->
+    <div class="col-span-full text-center py-12 bg-card border border-border rounded-xl">
+      <svg class="mx-auto h-12 w-12 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+      <h3 class="mt-4 text-text-primary">Sin servicios configurados</h3>
+      <p class="mt-1 text-text-muted text-sm">
+        Añade servicios en <code class="font-mono bg-dark px-1.5 py-0.5 rounded">backend/.env</code> (variable <code class="font-mono">MONITOR_SERVICES</code>)
+      </p>
+    </div>
+  ) : (
+    // Renderiza una tarjeta por servicio
+    services.map((svc) => (
+      <MetricCard service={svc} />
+    ))
+  )}
+
+  <!-- Overlay de carga (skeleton) mientras fetchea datos -->
+  {isLoading && services.length === 0 && (
+    <div class="col-span-full" aria-live="polite" aria-busy="true">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} class="card p-5 animate-pulse space-y-4">
+          <div class="h-4 w-3/4 bg-border rounded"></div>
+          <div class="grid grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, j) => (
+              <div key={j} class="text-center">
+                <div class="h-8 w-full bg-border rounded"></div>
+                <div class="h-3 w-1/2 mx-auto mt-1 bg-border rounded"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+
+<style>
+  /* Scoped: solo afecta a este contenedor */
+  /* El grid template columns se define en global.css via @layer components */
+</style>

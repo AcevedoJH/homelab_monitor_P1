@@ -1,0 +1,142 @@
+/* src/styles/global.css */
+/* ============================================================================
+   Tailwind CSS - Capas base, componentes y utilidades.
+   @tailwind base   -> Reset/normalize + estilos base (tipografía, etc.)
+   @tailwind components -> Clases @layer components (nuestras clases personalizadas)
+   @tailwind utilities  -> Clases utilitarias generadas (flex, grid, p-4, etc.)
+   ============================================================================ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   Estilos globales personalizados (capa base)
+   Usamos @layer base para que tengan menor especificidad que utilidades.
+   ============================================================================ */
+@layer base {
+  /* Forzamos modo oscuro en toda la app (darkMode: 'class' en tailwind.config) */
+  html {
+    @apply dark;
+  }
+
+  /* Fondo global: #0A0A0A (variable dark) + color de texto por defecto */
+  body {
+    @apply bg-dark text-text-primary antialiased;
+    /* antialiased = -webkit-font-smoothing: antialiased; mejora render en macOS */
+  }
+
+  /* Scrollbar estilizada para dark theme (WebKit) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-dark;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+}
+
+/* ============================================================================
+   Componentes reutilizables (capa components)
+   Se usan con @apply en HTML o directamente como clases.
+   ============================================================================ */
+@layer components {
+  /* Contenedor de página: ancho máximo + centrado + padding responsive */
+  .page-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8;
+  }
+
+  /* Tarjeta base: fondo #111111, borde sutil, esquinas redondeadas, sombra sutil */
+  .card {
+    @apply bg-card border border-border rounded-xl transition-all duration-200 hover:border-border/50;
+    /* hover:border-border/50 = borde un 50% más visible al hover (feedback sutil) */
+  }
+
+  /* Badge de estado: pill redondeado, texto pequeño, peso semibold */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide;
+  }
+
+  /* Variante UP: verde con fondo translúcido para modo dark */
+  .status-badge--up {
+    @apply status-badge bg-status-up/15 text-status-up border border-status-up/30;
+  }
+
+  /* Variante DEGRADED: amarillo */
+  .status-badge--degraded {
+    @apply status-badge bg-status-degraded/15 text-status-degraded border border-status-degraded/30;
+  }
+
+  /* Variante DOWN: rojo */
+  .status-badge--down {
+    @apply status-badge bg-status-down/15 text-status-down border border-status-down/30;
+  }
+
+  /* Métrica grande (número principal en tarjeta) */
+  .metric-value {
+    @apply text-3xl sm:text-4xl font-mono font-bold tabular-nums;
+    /* font-mono = alinea dígitos; tabular-nums = ancho fijo por dígito (evita saltos) */
+  }
+
+  /* Etiqueta de métrica (texto pequeño, muted) */
+  .metric-label {
+    @apply text-xs text-text-muted uppercase tracking-wider font-medium;
+  }
+
+  /* Grid adaptativo de tarjetas (CSS Grid nativo vía utilidades) */
+  .service-grid {
+    @apply grid gap-4 sm:gap-6;
+    /* Mobile: 1 columna; Tablet: 2; Desktop: 3; XL: 4 */
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  @media (min-width: 640px) {
+    .service-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1024px) {
+    .service-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1280px) {
+    .service-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  /* Animación de entrada escalonada para tarjetas */
+  .stagger-in > * {
+    @apply animate-fade-in;
+  }
+  .stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-in > *:nth-child(2) { animation-delay: 50ms; }
+  .stagger-in > *:nth-child(3) { animation-delay: 100ms; }
+  .stagger-in > *:nth-child(4) { animation-delay: 150ms; }
+  .stagger-in > *:nth-child(5) { animation-delay: 200ms; }
+  .stagger-in > *:nth-child(6) { animation-delay: 250ms; }
+}
+
+/* ============================================================================
+   Utilidades extra (capa utilities) - solo si no existen en Tailwind
+   ============================================================================ */
+@layer utilities {
+  /* Texto con truncamiento (ellipsis) en una línea */
+  .text-ellipsis {
+    @apply truncate;
+  }
+
+  /* Ocultar scrollbar pero permitir scroll */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE/Edge */
+    scrollbar-width: none;     /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;             /* Chrome/Safari */
+  }
+}

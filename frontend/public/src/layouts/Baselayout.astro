@@ -1,0 +1,53 @@
+---
+// src/layouts/BaseLayout.astro
+// ============================================================================
+// Layout base: define la estructura HTML común a todas las páginas.
+// Astro inyecta el contenido de cada página donde está <slot />.
+// Ventaja: HTML estático por defecto, JS solo donde hace falta (islands).
+// ============================================================================
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'Monitor de servicios homelab - Dashboard en tiempo real' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="es" class="dark">
+  <!-- class="dark" activa darkMode: 'class' de Tailwind en toda la app -->
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <!-- Preconnect a la API backend para reducir latencia en primera petición -->
+    <link rel="preconnect" href="http://localhost:3000" crossorigin />
+    <!-- Favicon simple (SVG inline para evitar request extra) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>" />
+  </head>
+  <body class="min-h-screen bg-dark text-text-primary">
+    <!-- a11y: landmark principal -->
+    <main id="main-content" class="page-container" role="main">
+      <slot />
+      <!-- Aquí se inyecta el contenido de cada página (index.astro, etc.) -->
+    </main>
+
+    <!-- Script global mínimo: registra Service Worker si existe (PWA futuro) -->
+    <script is:inline>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => { /* silent */ });
+        });
+      }
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  /* Estilos globales que no entran en Tailwind (p. ej. focus-visible personalizado) */
+  :focus-visible {
+    @apply outline-none ring-2 ring-status-up ring-offset-2 ring-offset-dark;
+  }
+</style>

@@ -1,0 +1,54 @@
+---
+// src/components/StatusBadge.astro
+// ============================================================================
+// Componente de badge de estado: muestra un indicador visual (píldora) con
+// el estado del servicio (up/degraded/down).
+// Recibe el estado como prop y aplica la clase CSS correspondiente.
+// ============================================================================
+
+interface Props {
+  status: 'up' | 'degraded' | 'down';
+  showDot?: boolean; // opcional: punto pulsante para "up"
+}
+
+const { status, showDot = true } = Astro.props;
+
+// Mapeo de estado -> clase CSS (definida en global.css @layer components)
+const statusClasses = {
+  up: 'status-badge--up',
+  degraded: 'status-badge--degraded',
+  down: 'status-badge--down',
+  offline: 'status-badge--down', // offline usa el mismo estilo visual que down
+};
+
+// Texto legible para cada estado (accesibilidad: screen readers)
+const statusLabels: Record<string, string> = {
+  up: 'Online',
+  degraded: 'Degradado',
+  down: 'Offline',
+};
+
+const badgeClass = statusClasses[status] ?? statusClasses.down;
+const label = statusLabels[status] ?? 'Desconocido';
+---
+
+<!--
+  role="status" + aria-live="polite" anuncia cambios de estado a lectores de pantalla
+  sin interrumpir la navegación.
+  El punto indicador (span) usa animación CSS pulse-slow solo en estado "up".
+-->
+<span class={badgeClass} role="status" aria-live="polite" aria-label={`Estado: ${label}`}>
+  {showDot && status === 'up' && (
+    <span
+      class="w-2 h-2 rounded-full bg-status-up animate-pulse-slow"
+      aria-hidden="true"
+      title="Servicio respondiendo correctamente"
+    ></span>
+  )}
+  <span class="capitalize">{label}</span>
+</span>
+
+<style>
+  /* Scoped styles: solo afecta a este componente (Astro añade hash único) */
+  /* Aquí podríamos añadir variantes si no usáramos @layer components en global.css */
+</style>

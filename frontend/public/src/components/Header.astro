@@ -1,0 +1,104 @@
+---
+// src/components/Header.astro
+// ============================================================================
+// Cabecera de la página: título, subtítulo, estado global (resumen) y
+// controles de actualización manual / auto-refresh.
+// ============================================================================
+
+interface Props {
+  summary: {
+    total: number;
+    up: number;
+    degraded: number;
+    down: number;
+    availability: number;
+    avgLatencyMs: number | null;
+  };
+  lastUpdated: string;
+  isLoading?: boolean;
+}
+
+const { summary, lastUpdated, isLoading = false } = Astro.props;
+
+const fmtTime = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch {
+    return '—';
+  }
+};
+---
+
+<header class="mb-8" role="banner">
+  <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">
+        Homelab Monitor
+      </h1>
+      <p class="text-text-muted mt-1">
+        Estado en tiempo real de tus servicios · Última actualización: <time id="last-updated" datetime={lastUpdated}>{fmtTime(lastUpdated)}</time>
+      </p>
+    </div>
+
+    <!-- Resumen global: 4 contadores + disponibilidad -->
+    <div class="flex flex-wrap items-center gap-3 text-sm" role="region" aria-label="Resumen global de servicios" aria-live="polite">
+      <div class="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-lg">
+        <span class="w-2 h-2 rounded-full bg-status-up" aria-hidden="true"></span>
+        <span class="font-mono font-semibold text-status-up" data-summary="up">{summary.up}</span>
+        <span class="text-text-muted">Online</span>
+      </div>
+      <div class="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-lg">
+        <span class="w-2 h-2 rounded-full bg-status-degraded" aria-hidden="true"></span>
+        <span class="font-mono font-semibold text-status-degraded" data-summary="degraded">{summary.degraded}</span>
+        <span class="text-text-muted">Degradado</span>
+      </div>
+      <div class="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-lg">
+        <span class="w-2 h-2 rounded-full bg-status-down" aria-hidden="true"></span>
+        <span class="font-mono font-semibold text-status-down" data-summary="down">{summary.down}</span>
+        <span class="text-text-muted">Offline</span>
+      </div>
+      <div class="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-lg ml-auto">
+        <svg class="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></path></svg>
+        <span class="font-mono font-semibold text-text-primary" data-summary="availability">{summary.availability}%</span>
+        <span class="text-text-muted">disponibilidad</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controles: botón refresh manual + toggle auto-refresh -->
+  <div class="flex flex-wrap items-center gap-3">
+    <button
+      id="refresh-btn"
+      class="px-4 py-2 bg-card border border-border rounded-lg text-text-primary font-medium hover:border-status-up/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+      disabled={isLoading}
+      aria-label="Actualizar métricas ahora"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></path></svg>
+      <span>Actualizar</span>
+      {isLoading && <span class="w-4 h-4 border-2 border-status-up border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>}
+    </button>
+
+    <label class="flex items-center gap-2 cursor-pointer">
+      <input
+        type="checkbox"
+        id="auto-refresh"
+        checked
+        class="w-4 h-4 rounded border-border bg-dark text-status-up focus:ring-status-up focus:ring-2 appearance-none checked:bg-status-up checked:border-status-up transition-colors"
+        aria-label="Actualización automática cada 30s"
+      />
+      <span class="text-sm text-text-muted">Auto-refresh (30s)</span>
+    </label>
+  </div>
+</header>
+
+<script is:inline>
+  // Pequeña lógica cliente: actualiza el timestamp visible sin recargar la página
+  // (el polling real está en liveMetrics.js, esto es solo UI)
+  const timeEl = document.getElementById('last-updated');
+  if (timeEl) {
+    const updateClock = () => {
+      timeEl.textContent = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    };
+    setInterval(updateClock, 1000);
+  }
+</script>

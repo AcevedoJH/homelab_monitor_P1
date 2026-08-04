@@ -1,0 +1,139 @@
+---
+// src/components/MetricCard.astro
+// ============================================================================
+// Tarjeta individual de servicio: muestra nombre, estado, latencia, probes,
+// último error y timestamp. Diseñada para ser consumida en un grid adaptativo.
+// ============================================================================
+
+interface Props {
+  service: {
+    name: string;
+    url: string;
+    status: 'up' | 'degraded' | 'down';
+    statusCode: number | null;
+    probes: { total: number; succeeded: number; availability: number };
+    latencyMs: { avg: number | null; min: number | null; max: number | null } | null;
+    lastError: string | null;
+    checkedAt: string;
+  };
+}
+
+const { service } = Astro.props;
+
+// Formatea latencia: "42 ms" o "—" si null
+const fmtLatency = (ms: number | null) => (ms !== null ? `${ms} ms` : '—');
+
+// Formatea timestamp ISO a hora local legible
+const fmtTime = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch {
+    return '—';
+  }
+};
+
+// Clase de borde según estado (feedback visual sutil en el contenedor)
+const borderClass = {
+  up: 'border-l-4 border-status-up',
+  degraded: 'border-l-4 border-status-degraded',
+  down: 'border-l-4 border-status-down',
+  offline: 'border-l-4 border-status-down', // offline usa el mismo color visual que down
+}[service.status];
+
+// Color de la barra de latencia según umbrales (visual feedback rápido):
+//   < 50ms  → verde  (saludable)
+// 50-150ms → amarillo (aceptable pero degradado)
+//   > 150ms → rojo   (lento, posible problema)
+function latencyColor(ms) {
+  if (ms === null) return '#6B7280'; // gris cuando no hay dato
+  if (ms < 50) return '#22C55E';    // status-up green
+  if (ms < 150) return '#FACC15';   // status-degraded yellow
+  return '#EF4444';                  // status-down red
+}
+---
+
+<article
+  class={`card p-5 flex flex-col gap-4 ${borderClass} animate-fade-in`}
+  data-service-name={service.name}
+  data-status={service.status}
+>
+  <!-- Encabezado: nombre + badge de estado -->
+  <header class="flex items-start justify-between gap-3">
+    <div class="min-w-0"> {/* min-w-0 evita overflow en flex */}
+      <h2 class="font-semibold text-text-primary truncate">{service.name}</h2>
+      <p class="text-xs text-text-muted truncate mt-0.5 font-mono">{service.url}</p>
+    </div>
+    <StatusBadge status={service.status} showDot={true} />
+  </header>
+
+  <!-- Métricas principales: latencia + disponibilidad -->
+  <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4 text-center" role="list">
+    <!-- Latencia promedio con barra visual -->
+    <div class="col-span-2 sm:col-span-1">
+      <dt class="metric-label">Lat. media</dt>
+      <dd class="metric-value text-status-up" data-metric="latency-avg" aria-label="Latencia promedio">
+        {service.latencyMs ? fmtLatency(service.latencyMs.avg) : '—'}
+      </dd>
+      <!-- Barra de latencia: ancho proporcional al valor (máx 300ms = 100%).
+           El color cambia según umbrales: verde <50ms, amarillo 50-150ms, rojo >150ms.
+           data-latency permite que liveMetrics.js actualice la barra sin re-renderizar toda la tarjeta. -->
+      <div class="mt-1.5 h-1.5 bg-border rounded-full overflow-hidden" data-latency-bar>
+        <div
+          class="h-full rounded-full transition-all duration-500 ease-out"
+          data-latency-fill
+          style={service.latencyMs ? `width:${Math.min((service.latencyMs.avg ?? 0) / 300 * 100, 100)}%;background:${latencyColor(service.latencyMs.avg)}` : 'width:0%'}
+        ></div>
+      </div>
+    </div>
+    <!-- Latencia mínima -->
+    <div>
+      <dt class="metric-label">Mín</dt>
+      <dd class="metric-value text-text-muted" data-metric="latency-min" aria-label="Latencia mínima">
+        {service.latencyMs ? fmtLatency(service.latencyMs.min) : '—'}
+      </dd>
+    </div>
+    <!-- Latencia máxima -->
+    <div>
+      <dt class="metric-label">Máx</dt>
+      <dd class="metric-value text-text-muted" data-metric="latency-max" aria-label="Latencia máxima">
+        {service.latencyMs ? fmtLatency(service.latencyMs.max) : '—'}
+      </dd>
+    </div>
+    <!-- Disponibilidad de probes -->
+    <div>
+      <dt class="metric-label">Disponib.</dt>
+      <dd class="metric-value" data-metric="availability" aria-label={`Disponibilidad ${service.probes.availability}%`}>
+        {service.probes.availability}%
+      </dd>
+    </div>
+  </dl>
+
+  <!-- Detalles secundarios: HTTP status + probes + última actualización -->
+  <div class="flex flex-wrap items-center gap-3 text-xs text-text-muted border-t border-border pt-3">
+    <span class="flex items-center gap-1">
+      <span class="px-1.5 py-0.5 bg-dark rounded text-text-primary font-mono">
+        {service.statusCode !== null ? service.statusCode : '—'}
+      </span>
+      <span>HTTP</span>
+    </span>
+    <span class="flex items-center gap-1">
+      <span class="font-mono">{service.probes.succeeded}/{service.probes.total}</span>
+      <span>probes</span>
+    </span>
+    <span class="flex items-center gap-1 ml-auto">
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      <time datetime={service.checkedAt}>{fmtTime(service.checkedAt)}</time>
+    </span>
+  </div>
+
+  <!-- Error (solo si hay) -->
+  {service.lastError && (
+    <div class="text-xs text-status-down/80 bg-status-down/5 rounded p-2 font-mono break-all" role="alert">
+      Último error: {service.lastError}
+    </div>
+  )}
+</article>
+
+<style>
+  /* Scoped: animación de entrada ya definida en global.css (.animate-fade-in) */
+</style>
