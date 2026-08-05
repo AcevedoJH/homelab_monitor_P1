@@ -14,12 +14,13 @@
    Usamos @layer base para que tengan menor especificidad que utilidades.
    ============================================================================ */
 @layer base {
-  /* Forzamos modo oscuro en toda la app (darkMode: 'class' en tailwind.config) */
+  /* Fondo global: #0A0A0A (variable dark) + color de texto por defecto */
+  /* Nota: el modo oscuro se activa con <html class="dark"> (Baselayout.astro);
+     `dark` es un modificador de modo, no una utilidad aplicable con @apply. */
   html {
-    @apply dark;
+    color-scheme: dark;
   }
 
-  /* Fondo global: #0A0A0A (variable dark) + color de texto por defecto */
   body {
     @apply bg-dark text-text-primary antialiased;
     /* antialiased = -webkit-font-smoothing: antialiased; mejora render en macOS */
@@ -77,9 +78,9 @@
     @apply status-badge bg-status-down/15 text-status-down border border-status-down/30;
   }
 
-  /* Métrica grande (número principal en tarjeta) */
+  /* Métrica principal (número en cada fila de la lista) */
   .metric-value {
-    @apply text-3xl sm:text-4xl font-mono font-bold tabular-nums;
+    @apply text-lg font-mono font-bold tabular-nums;
     /* font-mono = alinea dígitos; tabular-nums = ancho fijo por dígito (evita saltos) */
   }
 
@@ -88,26 +89,12 @@
     @apply text-xs text-text-muted uppercase tracking-wider font-medium;
   }
 
-  /* Grid adaptativo de tarjetas (CSS Grid nativo vía utilidades) */
+  /* Lista de servicios (modo lista): una sola columna, cada servicio como
+     una fila ancha que ocupa todo el ancho disponible. Elegido por preferencia
+     de UX frente al grid multi-columna de tarjetas. */
   .service-grid {
-    @apply grid gap-4 sm:gap-6;
-    /* Mobile: 1 columna; Tablet: 2; Desktop: 3; XL: 4 */
+    @apply grid gap-3;
     grid-template-columns: repeat(1, minmax(0, 1fr));
-  }
-  @media (min-width: 640px) {
-    .service-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-  @media (min-width: 1024px) {
-    .service-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-  @media (min-width: 1280px) {
-    .service-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
   }
 
   /* Animación de entrada escalonada para tarjetas */
@@ -120,6 +107,48 @@
   .stagger-in > *:nth-child(4) { animation-delay: 150ms; }
   .stagger-in > *:nth-child(5) { animation-delay: 200ms; }
   .stagger-in > *:nth-child(6) { animation-delay: 250ms; }
+
+  /* Banner de alerta compacto: backend caído / datos desactualizados.
+     Barra fina de una sola línea en amarillo (#FACC15 = status-degraded) que no
+     roba protagonismo a las tarjetas pero es claramente visible.
+     Se usa CSS plano (no @apply) para no depender de clases Tailwind que
+     deban generar utilidades on-demand. */
+  .backend-alert {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    margin: 0 0 0.75rem 0;
+    border-radius: 0.5rem;
+    background: rgba(250, 204, 21, 0.1);
+    border: 1px solid rgba(250, 204, 21, 0.4);
+    color: #FACC15;
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    max-width: fit-content;
+  }
+  .backend-alert .backend-alert-detail {
+    color: rgba(250, 204, 21, 0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 45ch;
+  }
+
+  /* Marcado "stale": cuando el backend cae, las tarjetas se atenúan para que
+     el usuario entienda que son datos del último poll exitoso, no en vivo.
+     La transición suaviza el cambio y los badges de estado se mantienen
+     legibles pero claramente desactualizados. */
+  .service-grid.is-stale {
+    opacity: 0.6;
+    pointer-events: none;
+    filter: saturate(0.6);
+    transition: opacity 300ms ease, filter 300ms ease;
+  }
+  .service-grid.is-stale .remove-service-btn {
+    opacity: 0.4;
+    pointer-events: none;
+  }
 }
 
 /* ============================================================================

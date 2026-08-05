@@ -12,6 +12,11 @@ interface Props {
 }
 
 const { title, description = 'Monitor de servicios homelab - Dashboard en tiempo real' } = Astro.props;
+
+// Importamos el CSS global (Tailwind + clases personalizadas @layer components
+// como .card, .status-badge, .backend-alert). En Astro, un archivo CSS en
+// src/ debe importarse explicitamente para que se incluya en el build.
+import '../styles/global.css';
 ---
 
 <!doctype html>
