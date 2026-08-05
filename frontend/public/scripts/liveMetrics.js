@@ -31,7 +31,14 @@
 // CONFIGURACIÓN
 // ============================================================================
 const FETCH_TIMEOUT_MS = 10_000;  // timeout por petición HTTP
-const API_BASE = 'http://localhost:3000/api/v1';
+
+// Ruta base de la API: SIEMPRE relativa (/api/v1).
+// - Producción (Docker + nginx): nginx proxya /api al backend, misma origin.
+// - Desarrollo (Astro dev): el dev server de Vite proxya /api -> localhost:3000
+//   (ver server.proxy en astro.config.mjs).
+// Al ser siempre misma origin, no hay CORS y funciona bajo cualquier dominio
+// (incluida la ruta del Cloudflare Tunnel: homelab-monitor.acevedojavier.dev).
+const API_BASE = '/api/v1';
 const MAX_RETRIES = 3;            // reintentos ante fallo de red
 const RETRY_DELAY_MS = 3_000;     // espera entre reintentos
 

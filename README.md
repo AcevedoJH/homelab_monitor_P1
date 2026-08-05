@@ -4,6 +4,51 @@ Dashboard de monitorización de servicios en tiempo real para homelab. Backend e
 
 ---
 
+## 🐳 Deploy con Docker (recomendado, un comando)
+
+La forma más fácil de ver el proyecto en funcionamiento. Levanta backend + frontend
+en una sola red interna de Docker, con nginx sirviendo la web y haciendo de proxy
+inverso hacia la API (`/api` → backend). El navegador solo toca el puerto del frontend:
+**sin CORS, sin pasos extra**.
+
+```bash
+# 1. Clonar
+git clone <repo-url>
+cd homelab_monitor
+
+# 2. Configurar (opcional — los defaults ya funcionan)
+cp .env.example .env      # ajusta MONITOR_SERVICES si quieres tus servicios
+
+# 3. Construir y levantar
+docker compose up -d --build
+
+# 4. Abrir
+#    http://localhost:4321
+```
+
+> **Nota**: si no defines `MONITOR_SERVICES`, el backend detecta tu gateway local
+> y monitorea los DNS públicos (Cloudflare + Google) automáticamente, así que la
+> app muestra datos nada más arrancar.
+
+| Comando | Efecto |
+|---|---|
+| `docker compose up -d --build` | Construye y levanta todo en segundo plano |
+| `docker compose logs -f backend` | Ver logs de la API |
+| `docker compose down` | Detiene los contenedores (mantiene los datos) |
+| `docker compose down -v` | Detiene y borra el volumen de datos |
+
+**Servicios**: `backend` (Express, puerto 3000, solo red interna) y `frontend`
+(nginx, único puerto publicado hacia el host, **`4321`**). El puerto se fija con
+`FRONTEND_PORT` en `.env` y coincide con la ruta de Cloudflare Tunnel.
+
+Para desplegarlo **detrás de Cloudflare Tunnel** apuntando el subdominio
+`homelab-monitor.acevedojavier.dev` a **`localhost:4321`**, no necesitas cambiar
+nada del contenedor: el proyecto ya publica el frontend en ese puerto. Como el
+frontend usa rutas relativas (`/api`), el proxy inverso de nginx sigue funcionando
+bajo cualquier dominio.
+
+---
+
 ## 🏗️ Arquitectura
 
 ```
