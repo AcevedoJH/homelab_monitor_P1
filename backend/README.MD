@@ -94,7 +94,7 @@ src/
 - El rate limiter es en memoria (por proceso); para múltiples réplicas migrar
   a Redis sin tocar las rutas.
 
-## Próximos pasos sugeridos
+## Próximos pasos
 
 - Persistencia de histórico de métricas (p. ej. SQLite/InfluxDB) para tendencias.
 - Intervalo de sondeo en background + caché (evitar pings por cada petición).

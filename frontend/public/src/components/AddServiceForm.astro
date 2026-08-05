@@ -1,0 +1,58 @@
+---
+// src/components/AddServiceForm.astro
+// ============================================================================
+// Formulario para agregar un servicio desde la interfaz grafica.
+// El submit lo maneja liveMetrics.js (evento 'add-service'): no hay logica
+// de negocio aqui, solo markup + estilos. Asi el JS de cliente vive en un
+// solo archivo (liveMetrics.js), siguiendo el patron del resto de la app.
+// ============================================================================
+
+const { } = Astro.props;
+---
+
+<form id="add-service-form" class="mb-6" novalidate>
+  <div class="card p-5">
+    <div class="flex flex-col sm:flex-row sm:items-end gap-4">
+      <div class="flex-1 min-w-0">
+        <label for="svc-name" class="metric-label block mb-1">Nombre (opcional)</label>
+        <input
+          type="text"
+          id="svc-name"
+          name="name"
+          placeholder="p. ej. raspberry-pi"
+          class="w-full px-3 py-2 bg-dark border border-border rounded-lg text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-status-up"
+        />
+      </div>
+      <div class="flex-1 min-w-0">
+        <label for="svc-url" class="metric-label block mb-1">URL o IP</label>
+        <input
+          type="text"
+          id="svc-url"
+          name="url"
+          required
+          placeholder="http://192.168.0.50 o https://mi-servicio.local"
+          class="w-full px-3 py-2 bg-dark border border-border rounded-lg text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-status-up"
+        />
+      </div>
+      <button
+        type="submit"
+        id="add-service-btn"
+        class="px-4 py-2 bg-status-up text-dark font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+        aria-label="Agregar servicio a monitorear"
+      >
+        <span class="flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+          <span>Agregar servicio</span>
+        </span>
+      </button>
+    </div>
+
+    <p id="add-service-feedback" class="mt-3 text-sm text-text-muted" role="status" aria-live="polite">
+      Tip: si escribes solo una IP o URL, el nombre se deriva del hostname automáticamente.
+    </p>
+  </div>
+</form>
+
+<style>
+  /* .card, .metric-label, .bg-dark etc. vienen de global.css / Tailwind */
+</style>

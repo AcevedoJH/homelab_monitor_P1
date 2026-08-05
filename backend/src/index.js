@@ -23,14 +23,17 @@ app.disable('x-powered-by');
 // parsea cuerpos JSON en las peticiones (preparado para POST futuros).
 app.use(express.json());
 
-// CORS: permite que el frontend (puerto 4321) haga fetch al backend (puerto 3000).
-// Sin esto, el navegador bloquea las peticiones entre orígenes distintos
-// (different ports = different origin). Usamos un middleware manual en vez
-// del paquete `cors` para evitar dependencias extra y tener control total
-// sobre qué cabeceras exponemos.
+// CORS: whitelist con localhost Y 127.0.0.1 (el navegador los trata como
+// orígenes distintos). Si el origen de la petición no está permitido,
+// no se envía la cabecera y el navegador bloquea el fetch (síntoma típico:
+// el grid se queda en "Sin servicios configurados").
+const allowedOrigins = ['http://localhost:4321', 'http://127.0.0.1:4321'];
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);

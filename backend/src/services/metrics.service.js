@@ -8,6 +8,7 @@
 
 import { config } from '../config/env.js';
 import { pingService } from './ping.service.js';
+import { getAllServices } from './services.store.js';
 
 // ---------------------------------------------------------------------------
 // collectMetrics(): ejecuta el ping de TODOS los servicios y agrega el resumen
@@ -15,22 +16,28 @@ import { pingService } from './ping.service.js';
 export async function collectMetrics() {
   const startedAt = performance.now();
 
+  // Combina servicios estaticos (.env) + dinamicos (agregados via UI).
   // Promise.allSettled (a diferencia de Promise.all) nunca rechaza aunque un
   // servicio falle: la caida de UN servicio NO debe tumbar el reporte entero.
   // Este es el patron correcto para monitorizacion distribuida: degradar, no
   // explotar.
+  const allServices = getAllServices();
   const settled = await Promise.allSettled(
-    config.services.map((service) => pingService(service, { probes: config.probes, timeoutMs: config.requestTimeoutMs })),
+    allServices.map((service) => pingService(service, { probes: config.probes, timeoutMs: config.requestTimeoutMs })),
   );
 
   // Transformamos cada resultado: si la promesa fue rechazada (algo salio MUY
   // mal, p. ej. un bug en el servicio de ping), lo convertimos en una metricas
-  // de fallo con el motivo, en vez de propagar la excepcion.
+  // de fallo con el motivo, en vez de propagar la excepcion. Propagamos id y
+  // `managed` del servicio original para que el frontend sepa cual es borrable.
   const services = settled.map((entry, index) => {
-    if (entry.status === 'fulfilled') return entry.value;
+    const src = allServices[index];
+    const base = { id: src.id ?? null, managed: src.managed ?? false };
+    if (entry.status === 'fulfilled') return { ...base, ...entry.value };
     return {
-      name: config.services[index].name,
-      url: config.services[index].url,
+      ...base,
+      name: src.name,
+      url: src.url,
       status: 'down',
       statusCode: null,
       probes: { total: config.probes, succeeded: 0, availability: 0 },

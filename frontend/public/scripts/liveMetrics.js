@@ -32,7 +32,7 @@
 // ============================================================================
 const POLL_INTERVAL_MS = 5_000;    // 5 segundos entre polls (requisito)
 const FETCH_TIMEOUT_MS = 10_000;  // timeout por petición HTTP
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = 'http://localhost:3000/api/v1';
 const MAX_RETRIES = 3;            // reintentos ante fallo de red
 const RETRY_DELAY_MS = 3_000;     // espera entre reintentos
 
@@ -53,6 +53,11 @@ let summaryUpEl = null;
 let summaryDegradedEl = null;
 let summaryDownEl = null;
 let summaryAvailEl = null;
+let addServiceForm = null;
+let addServiceNameInput = null;
+let addServiceUrlInput = null;
+let addServiceBtn = null;
+let addServiceFeedback = null;
 
 // ============================================================================
 // UTILIDADES
@@ -221,10 +226,20 @@ function renderGrid(services) {
     const article = document.createElement('article');
     article.className = 'card p-5 flex flex-col gap-4 animate-fade-in';
     article.dataset.serviceName = svc.name;
+    if (svc.id) article.dataset.serviceId = svc.id;
     article.dataset.status = svc.status;
 
     const borderColors = { up: 'border-status-up', degraded: 'border-status-degraded', down: 'border-status-down', offline: 'border-status-down' };
     article.classList.add('border-l-4', borderColors[svc.status]);
+
+    // Solo los servicios gestionados (agregados via UI, managed: true) son
+    // borrables; los de .env no. Mostramos el boton solo en esos casos.
+    const removeBtn = svc.managed
+      ? `<button type="button" class="remove-service-btn shrink-0 ml-auto inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-text-muted border border-border hover:text-status-down hover:border-status-down/50 transition-colors" data-remove-service="${escapeHtml(svc.id)}" aria-label="Eliminar ${escapeHtml(svc.name)}">
+           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+           <span>Quitar</span>
+         </button>`
+      : '';
 
     article.innerHTML = `
       <header class="flex items-start justify-between gap-3">
@@ -232,7 +247,10 @@ function renderGrid(services) {
           <h2 class="font-semibold text-text-primary truncate">${escapeHtml(svc.name)}</h2>
           <p class="text-xs text-text-muted truncate mt-0.5 font-mono">${escapeHtml(svc.url)}</p>
         </div>
-        <div class="status-badge-wrapper"></div>
+        <div class="flex items-center shrink-0 gap-2">
+          <div class="status-badge-wrapper"></div>
+          ${removeBtn}
+        </div>
       </header>
 
       <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4 text-center" role="list">
@@ -339,59 +357,52 @@ async function poll() {
   isPolling = true;
 
   try {
-    const data = await fetchMetrics();
+    const result = await fetchMetrics();
 
-    // --- Éxito: actualizamos el DOM ---
+    if (!result || !result.success) {
+      throw new Error('Respuesta inválida del servidor');
+    }
 
-    // 1. Si la lista de servicios cambió (añadido/eliminado), re-renderizamos el grid completo
-    //    (esto es raro, solo cuando la configuración cambia)
-    renderGrid(data.services);
+    const { data } = result;
+    const services = data?.services ?? [];
+    const summary = data?.summary ?? {};
+    const timestamp = data?.timestamp ?? null;
 
-    // 2. Actualizamos los contadores del header
-    updateHeaderSummary(data.summary);
+    if (services.length === 0) {
+      console.warn('[liveMetrics] No se recibieron servicios del backend');
+    }
 
-    // 3. Actualizamos timestamp
-    updateLastUpdated(data.timestamp);
-
-    // 4. Actualizamos cada tarjeta individualmente (DOM diffing)
-    data.services.forEach((svc) => {
+    renderGrid(services);
+    updateHeaderSummary(summary);
+    updateLastUpdated(timestamp);
+    services.forEach((svc) => {
       updateStatusBadge(svc.name, svc.status);
       updateLatencyBar(svc.name, svc.latencyMs?.avg ?? null);
       updateLatencyText(svc.name, svc.latencyMs?.avg ?? null);
-      updateAvailability(svc.name, svc.probes.availability);
+      updateAvailability(svc.name, svc.probes?.availability ?? 0);
       updateStatusCode(svc.name, svc.statusCode);
       updateLastError(svc.name, svc.lastError);
     });
 
-    // 5. Limpiamos cualquier banner de error previo
     const errorBanner = gridEl?.parentElement?.querySelector('[role="alert"]');
     if (errorBanner) errorBanner.remove();
-
   } catch (err) {
-    // --- Error: lógica de reintentos ---
     const message = err instanceof Error ? err.message : 'Error desconocido';
-    console.error('[liveMetrics] Poll error:', message);
+    console.error(`[liveMetrics] Error al obtener métricas: ${message}`);
 
     if (retryCount < MAX_RETRIES) {
       retryCount++;
       console.warn(`[liveMetrics] Reintentando (${retryCount}/${MAX_RETRIES})...`);
-
-      // Mostramos un mensaje de reintentando en el header
       if (lastUpdatedEl) {
         lastUpdatedEl.textContent = `Reintentando (${retryCount}/${MAX_RETRIES})...`;
       }
-
-      // Espera antes de reintentar (backoff simple)
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-
-      // Reintenta SOLO si el auto-refresh sigue activo
       if (isPolling && autoRefreshCb?.checked) {
         scheduleNextPoll();
       }
-      return; // salimos para no programar el siguiente poll normal
+      return;
     }
 
-    // Agotados los reintentos: mostramos error persistente
     console.error(`[liveMetrics] Agotados ${MAX_RETRIES} reintentos: ${message}`);
     if (lastUpdatedEl) {
       lastUpdatedEl.textContent = `Error: ${message}`;
@@ -403,10 +414,11 @@ async function poll() {
     // ejecución anterior termine. Si un fetch tarda 6s y el intervalo
     // es 5s, tendríamos ejecuciones solapadas. Con setTimeout recursivo,
     // el próximo poll empieza 5s DESPUÉS de que el actual termine.
-    if (isPolling && autoRefreshCb?.checked) {
+    // La fuente de verdad para seguir repitiendo es el estado del checkbox
+    // (autoRefreshCb.checked); `isPolling` solo marca "un poll en curso".
+    isPolling = false;
+    if (autoRefreshCb?.checked) {
       scheduleNextPoll();
-    } else {
-      isPolling = false;
     }
   }
 }
@@ -415,8 +427,89 @@ async function poll() {
 function scheduleNextPoll() {
   if (pollTimer) clearTimeout(pollTimer);
   pollTimer = setTimeout(() => {
-    if (isPolling) poll();
+    poll();
   }, POLL_INTERVAL_MS);
+}
+
+// ============================================================================
+// GESTIÓN DE SERVICIOS DESDE LA INTERFAZ
+// ============================================================================
+
+// Muestra feedback del formulario (éxito/error) con estilos visuales
+function setAddFeedback(msg, isError) {
+  if (!addServiceFeedback) return;
+  addServiceFeedback.textContent = msg;
+  addServiceFeedback.classList.toggle('text-status-down', !!isError);
+  addServiceFeedback.classList.toggle('text-status-up', !isError);
+}
+
+// POST /api/v1/services: agrega un servicio y refresca el grid
+async function handleAddService(e) {
+  e.preventDefault();
+  if (!addServiceBtn || addServiceBtn.disabled) return;
+
+  const name = addServiceNameInput?.value.trim() ?? '';
+  const url = addServiceUrlInput?.value.trim() ?? '';
+  if (!url) {
+    setAddFeedback('La URL o IP es obligatoria', true);
+    return;
+  }
+
+  addServiceBtn.disabled = true;
+  setAddFeedback('Agregando servicio...', false);
+
+  try {
+    const res = await fetch(`${API_BASE}/services`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ name: name || undefined, url }),
+    });
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+
+    setAddFeedback(`Servicio "${data.data.service.name}" agregado`, false);
+    if (addServiceUrlInput) addServiceUrlInput.value = '';
+    if (addServiceNameInput) addServiceNameInput.value = '';
+    poll(); // refresco inmediato para ver la nueva tarjeta
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    console.error('[liveMetrics] Error agregando servicio:', message);
+    setAddFeedback(`Error: ${message}`, true);
+  } finally {
+    addServiceBtn.disabled = false;
+  }
+}
+
+// DELETE /api/v1/services/:id: elimina un servicio y refresca el grid
+async function handleRemoveService(id, btn) {
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-not-allowed');
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/services/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' },
+    });
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+
+    poll(); // refresco inmediato para quitar la tarjeta
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    console.error('[liveMetrics] Error eliminando servicio:', message);
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
 }
 
 // ============================================================================
@@ -432,6 +525,11 @@ function init() {
   summaryDegradedEl = document.querySelector('[data-summary="degraded"]');
   summaryDownEl = document.querySelector('[data-summary="down"]');
   summaryAvailEl = document.querySelector('[data-summary="availability"]');
+  addServiceForm = document.getElementById('add-service-form');
+  addServiceNameInput = document.getElementById('svc-name');
+  addServiceUrlInput = document.getElementById('svc-url');
+  addServiceBtn = document.getElementById('add-service-btn');
+  addServiceFeedback = document.getElementById('add-service-feedback');
 
   if (!gridEl) {
     console.warn('[liveMetrics] Grid element not found, skipping init');
@@ -459,8 +557,7 @@ function init() {
   if (autoRefreshCb) {
     autoRefreshCb.addEventListener('change', () => {
       if (autoRefreshCb.checked) {
-        isPolling = true;
-        scheduleNextPoll(); // arranca el ciclo de polls
+        poll(); // arranca con una carga inmediata
       } else {
         isPolling = false;
         if (pollTimer) clearTimeout(pollTimer); // detiene el ciclo
@@ -468,10 +565,28 @@ function init() {
     });
   }
 
+  // Formulario de agregar servicio
+  if (addServiceForm) {
+    addServiceForm.addEventListener('submit', handleAddService);
+  }
+
+  // Delegación de eventos: un solo listener en el grid para todos los botones
+  // "Quitar". Como el grid se re-renderiza en cada poll, la delegación evita
+  // re-asociar listeners a nodos que se recrean constantemente.
+  if (gridEl) {
+    gridEl.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-remove-service]');
+      if (btn) {
+        event.preventDefault();
+        const id = btn.getAttribute('data-remove-service');
+        if (id) handleRemoveService(id, btn);
+      }
+    });
+  }
+
   // Arranca el polling si auto-refresh está activo (por defecto sí)
   if (autoRefreshCb?.checked) {
-    isPolling = true;
-    scheduleNextPoll();
+    poll(); // carga inicial inmediata; poll() encadena el siguiente vía scheduleNextPoll()
   }
 
   // Limpieza al desmontar la página

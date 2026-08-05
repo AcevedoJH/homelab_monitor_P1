@@ -18,8 +18,16 @@ export async function getMetrics(req, res, next) {
     // El trabajo pesado (ping + agregacion) vive en el servicio, no aqui.
     const metrics = await collectMetrics();
 
-    // 200 + JSON: el contrato que consume el frontend (fetch -> json()).
-    res.status(200).json(metrics);
+    res.status(200).json({
+      success: true,
+      data: {
+        services: metrics.services,
+        summary: metrics.summary,
+        timestamp: metrics.timestamp,
+        durationMs: metrics.durationMs,
+        schemaVersion: metrics.schemaVersion,
+      },
+    });
   } catch (err) {
     // Cualquier error inesperado pasa a errorHandler (middleware de errores),
     // que se encarga de loggear y devolver un JSON 500 controlado. NUNCA

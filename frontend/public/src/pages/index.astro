@@ -9,6 +9,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
 import ServiceGrid from '../components/ServiceGrid.astro';
+import AddServiceForm from '../components/AddServiceForm.astro';
 import type { SummaryMetrics } from '../types/index';
 
 // Resumen inicial vacío (se actualiza vía JS cliente)
@@ -19,6 +20,9 @@ const lastUpdated = new Date().toISOString();
 <BaseLayout title="Homelab Monitor" description="Dashboard de monitorización de servicios en tiempo real">
   <!-- Header con resumen global y controles (inicial vacío) -->
   <Header summary={emptySummary} lastUpdated={lastUpdated} isLoading={true} />
+
+  <!-- Formulario para agregar servicios desde la interfaz (manejado en liveMetrics.js) -->
+  <AddServiceForm />
 
   <!-- Grid de servicios (inicialmente vacío, se hidrata vía liveMetrics.js) -->
   <ServiceGrid services={[]} isLoading={true} />
