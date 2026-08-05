@@ -1,0 +1,19 @@
+{
+  "name": "homelab-monitor-backend",
+  "version": "0.1.0",
+  "description": "Servicio de monitorizacion HTTP con metricas de latencia expuestas en /api/metrics",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "check": "node --check src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0"
+  }
+}
