@@ -60,8 +60,16 @@ services:
     # ÚNICO puerto publicado hacia el host: la puerta de entrada web.
     # El proxy /api de nginx redirige internamente al backend.
     # El default 4321 coincide con la ruta configurada en Cloudflare Tunnel.
+    # 8080 = puerto interno de nginx (non-root); 4321 = puerto del host.
     ports:
-      - "${FRONTEND_PORT:-4321}:80"
+      - "${FRONTEND_PORT:-4321}:8080"
+    # Límite explícito de memoria del contenedor (máximo 2 GB, 2048M).
+    # Protege al servidor local frente a picos de RAM del proceso nginx y
+    # garantiza que el contenedor nunca consuma más de lo asignado.
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
     depends_on:
       - backend
     networks:

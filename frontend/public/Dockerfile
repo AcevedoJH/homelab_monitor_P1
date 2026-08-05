@@ -1,58 +1,82 @@
 # ============================================================================
 # Dockerfile del frontend (Astro + Tailwind, build estático)
-# ----------------------------------------------------------------------------
-# Estrategia multi-stage:
-#   1. stage `build`: imagen Node — instala dependencias y genera el HTML
-#      estático en /app/dist (astro build, salida "static").
-#   2. stage `serve`: imagen nginx — copia el dist a la raíz web y monta un
-#      reverse proxy /api hacia el service interno `backend:3000`.
+# Refactor de producción con Multi-Stage Build en 3 etapas aisladas:
 #
-# Elegimos nginx porque sirve ficheros estáticos muy bien Y nos da el proxy
-# inverso en el mismo contenedor. Así la app usa UNA SOLA origin (rutas
-# relativas /api en liveMetrics.js), por lo que NO hay CORS entre frontend y
-# backend: ambos se sirven desde el mismo host al navegador.
+#   deps    → instala dependencias (capa cacheable por separado)
+#   builder → compila el sitio estático con memoria V8 ampliada
+#   runner  → nginx no-root que sirve el static + proxy /api al backend
+#
+# Beneficios:
+#   - La imagen final solo contiene el static y nginx: sin node_modules,
+#     sin código fuente, sin herramientas de build.
+#   - Si falla la memoria durante la compilación, la etapa builder ya está
+#     blindada con NODE_OPTIONS (ver NODE_OPTIONS abajo).
+#   - El runner corre con usuario sin privilegios (nginx), hardening por
+#     defecto: un exploit no tiene permisos root en el contenedor.
 # ============================================================================
 
-# ------------------ STAGE 1: construccion ------------------
-FROM node:20-alpine AS build
+# ------------------ STAGE 1: deps (dependencias) ------------------
+FROM node:20-alpine AS deps
 
-# Directorio de trabajo ACTIVO antes de cualquier copia/instalación.
-# Los ARG/ENV de build se definen ANTES de los RUN que los consumen.
-# Si el frontend necesitara variables en tiempo de build (p. ej. Astro
-# sustituye import.meta.env.PUBLIC_*), se inyectan desde docker-compose
-# como build.args y quedan disponibles como ENV durante `npm run build`.
+WORKDIR /app
+
+# Solo los manifiestos → capa Docker cacheable.
+# Si package.json no cambia, este paso no se re-ejecuta en builds siguientes.
+COPY package.json ./
+# Nota: no hay package-lock.json junto a package.json; usamos `npm install`.
+RUN npm install --no-audit --no-fund
+
+# ------------------ STAGE 2: builder (compilación) ------------------
+FROM node:20-alpine AS builder
+
+# Memoria V8 ampliada durante el build (3 GB).
+# Astro/Vite pueden exceder el heap por defecto en servidores con poca RAM o
+# en builds grandes → "JavaScript heap out of memory". Este límite lo evita.
+# Referencias:
+#   - https://stackoverflow.com/questions/56982005/where-do-i-set-node-options-max-old-space-size-2048
+#   - https://hafiqiqmal93.medium.com/why-npm-run-build-still-kills-your-low-memory-server-in-2026-7371b6778bb9
+ENV NODE_OPTIONS="--max-old-space-size=3072"
+
+# Variables de build (opcionales) inyectadas desde docker-compose (build.args).
+# El frontend usa ruta relativa /api, así que hoy no las consume; quedan listas
+# para sustituir import.meta.env.PUBLIC_* si algún día hiciera falta.
 ARG PUBLIC_API_BASE=
 ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
 
 WORKDIR /app
 
-# Copiar manifiestos primero (capas cacheables)
-COPY package.json ./
-# Nota: no hay package-lock.json junto a package.json; usamos `npm install`.
-RUN npm install --no-audit --no-fund
+# Reutilizamos node_modules de la etapa deps (no reinstalamos).
+COPY --from=deps /app/node_modules ./node_modules
 
-# Copiar el resto del proyecto (config, src, scripts publicos)
-COPY astro.config.mjs tailwind.config.mjs tsconfig.json ./
+# Código fuente, configuración y scripts públicos.
+COPY package.json astro.config.mjs tailwind.config.mjs tsconfig.json ./
 COPY src ./src
 COPY scripts ./scripts
 
-# Generar el sitio estático (salida en /app/dist).
-# NODE_OPTIONS amplía la memoria del V8 durante el build (8 GB): evita que
-# Astro/Vite se caigan con "JavaScript heap out of memory" en servidores
-# con poca RAM o en builds grandes.
-ENV NODE_OPTIONS="--max-old-space-size=8192"
+# Genera el sitio estático en /app/dist.
 RUN npm run build
 
-# ------------------ STAGE 2: servidor web ------------------
-FROM nginx:1.27-alpine
+# ------------------ STAGE 3: runner (nginx no-root) ------------------
+FROM nginx:1.27-alpine AS runner
 
-# Config de nginx: sirve el site + proxy inverso /api -> backend
+# Config: sirve el static + proxy inverso /api -> backend (misma origin).
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copiar el build estático al document root de nginx
-COPY --from=build /app/dist /usr/share/nginx/html
+# Único artefacto necesario del builder: el build estático optimizado.
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-EXPOSE 80
+# Hacer que nginx corra como usuario SIN privilegios (nginx):
+#   - pid file en /tmp (escribible por usuario no-root)
+#   - escucha en 8080 (>1024, no requiere bind con root)
+#   - propiedad de raíz web, caché y logs para el usuario nginx
+RUN sed -i 's|pid .*;|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf \
+ && chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/log/nginx /etc/nginx/conf.d /tmp
 
-# usamos la entrada de nginx por defecto (nofork, corre como PID 1)
+# Puerto interno de nginx (no-root). Se mapea a ${FRONTEND_PORT:-4321} en host.
+EXPOSE 8080
+
+# Cambiar al usuario no privilegiado ANTES del CMD.
+USER nginx
+
+# Entrada estándar de nginx (master como PID 1, daemon off para Docker).
 CMD ["nginx", "-g", "daemon off;"]
