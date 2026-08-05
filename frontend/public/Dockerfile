@@ -37,9 +37,11 @@ COPY src ./src
 COPY scripts ./scripts
 
 # Generar el sitio estático (salida en /app/dist).
-# NODE_OPTIONS amplía la memoria del V8 durante el build: evita que Astro/Vite
-# se caigan con "JavaScript heap out of memory" en servidores con poca RAM.
-RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
+# NODE_OPTIONS amplía la memoria del V8 durante el build (8 GB): evita que
+# Astro/Vite se caigan con "JavaScript heap out of memory" en servidores
+# con poca RAM o en builds grandes.
+ENV NODE_OPTIONS="--max-old-space-size=8192"
+RUN npm run build
 
 # ------------------ STAGE 2: servidor web ------------------
 FROM nginx:1.27-alpine
