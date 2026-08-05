@@ -51,6 +51,12 @@ services:
     build:
       context: ./frontend/public
       dockerfile: Dockerfile
+      # Build args inyectados durante la compilación. El frontend actual usa
+      # ruta relativa /api (API_BASE en liveMetrics.js), por lo que NO requiere
+      # variables en build; el mecanismo queda listo por si se necesitan
+      # (p. ej. PUBLIC_API_BASE para sustituir import.meta.env.PUBLIC_*).
+      args:
+        PUBLIC_API_BASE: ${PUBLIC_API_BASE:-}
     # ÚNICO puerto publicado hacia el host: la puerta de entrada web.
     # El proxy /api de nginx redirige internamente al backend.
     # El default 4321 coincide con la ruta configurada en Cloudflare Tunnel.

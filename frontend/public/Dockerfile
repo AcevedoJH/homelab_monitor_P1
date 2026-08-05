@@ -16,6 +16,14 @@
 # ------------------ STAGE 1: construccion ------------------
 FROM node:20-alpine AS build
 
+# Directorio de trabajo ACTIVO antes de cualquier copia/instalación.
+# Los ARG/ENV de build se definen ANTES de los RUN que los consumen.
+# Si el frontend necesitara variables en tiempo de build (p. ej. Astro
+# sustituye import.meta.env.PUBLIC_*), se inyectan desde docker-compose
+# como build.args y quedan disponibles como ENV durante `npm run build`.
+ARG PUBLIC_API_BASE=
+ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
+
 WORKDIR /app
 
 # Copiar manifiestos primero (capas cacheables)
@@ -28,8 +36,10 @@ COPY astro.config.mjs tailwind.config.mjs tsconfig.json ./
 COPY src ./src
 COPY scripts ./scripts
 
-# Generar el sitio estático (salida en /app/dist)
-RUN npm run build
+# Generar el sitio estático (salida en /app/dist).
+# NODE_OPTIONS amplía la memoria del V8 durante el build: evita que Astro/Vite
+# se caigan con "JavaScript heap out of memory" en servidores con poca RAM.
+RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 # ------------------ STAGE 2: servidor web ------------------
 FROM nginx:1.27-alpine
