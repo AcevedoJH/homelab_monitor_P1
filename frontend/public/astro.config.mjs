@@ -15,6 +15,17 @@ export default defineConfig({
     port: 4321,
     host: true, // escucha en todas las interfaces (útil en contenedores/VMs)
   },
+  // Proxy de Vite hacia el backend durante el desarrollo. Como el frontend usa
+  // rutas relativas /api (API_BASE en liveMetrics.js), reenviamos esas
+  // peticiones al backend (localhost:3000) para que haya UNA SOLA origin
+  // y no dependamos de CORS. Equivale al proxy /api que hace nginx en Docker.
+  vite: {
+    server: {
+      proxy: {
+        '/api': 'http://localhost:3000',
+      },
+    },
+  },
   // Prefijo de ruta si desplegamos en subpath (p. ej. /monitor/)
   // base: '/monitor/',
 });

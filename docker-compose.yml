@@ -1,0 +1,72 @@
+# ============================================================================
+# docker-compose.yml — Homelab Monitor
+# ----------------------------------------------------------------------------
+# Levanta la aplicación completa con UN SOLO COMANDO:
+#
+#     docker compose up -d
+#
+# Arquitectura de red:
+#   - Red interna `monitor-net`: frontend y backend se ven entre sí por el
+#     nombre de servicio (`backend:3000`).
+#   - El frontend (nginx) actúa de reverse proxy: sirve el HTML/JS estático
+#     y reenvía /api al backend. El navegador solo toca un puerto (el del
+#     frontend) → sin CORS, sin configuración extra.
+#   - El backend NO se publica al host (no tiene `ports:`): solo es
+#     alcanzable dentro de la red Docker. Hardening por defecto.
+#
+# Configuración vía variables de entorno (ver .env.example en la raíz).
+# ============================================================================
+
+services:
+  # ------------------ Backend: API REST (Node + Express) ------------------
+  backend:
+    build:
+      context: ./backend
+    # El backend no necesita publicarse al host; solo lo consume nginx.
+    # (Para depurar puntualmente se podría añadir `ports: ["3000:3000"]`.)
+    environment:
+      - NODE_ENV=production
+      # Servicios estáticos a monitorizar (formato nombre=url, comas).
+      # Vacío ⇒ el backend detecta el gateway local + DNS públicos (fallback).
+      - MONITOR_SERVICES=${MONITOR_SERVICES:-}
+      - REQUEST_TIMEOUT_MS=${REQUEST_TIMEOUT_MS:-5000}
+      - PROBES=${PROBES:-5}
+    # Persistencia de los servicios agregados desde la interfaz (UI).
+    volumes:
+      - backend-data:/app/data
+    networks:
+      - monitor-net
+    # Healthcheck: comprueba que la API responde antes de marcar el contenedor
+    # como sano (nativa de Node, sin wget/curl extra).
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ------------------ Frontend: Astro estático + nginx ------------------
+  frontend:
+    build:
+      context: ./frontend/public
+      dockerfile: Dockerfile
+    # ÚNICO puerto publicado hacia el host: la puerta de entrada web.
+    # El proxy /api de nginx redirige internamente al backend.
+    # El default 4321 coincide con la ruta configurada en Cloudflare Tunnel.
+    ports:
+      - "${FRONTEND_PORT:-4321}:80"
+    depends_on:
+      - backend
+    networks:
+      - monitor-net
+    restart: unless-stopped
+
+networks:
+  # Red interna privada (bridge por defecto)
+  monitor-net:
+    driver: bridge
+
+volumes:
+  # Volumen nombrado: sobrevive a `docker compose down` (no a `down -v`).
+  backend-data:

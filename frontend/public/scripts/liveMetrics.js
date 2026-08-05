@@ -30,11 +30,22 @@
 // ============================================================================
 // CONFIGURACIÓN
 // ============================================================================
-const POLL_INTERVAL_MS = 5_000;    // 5 segundos entre polls (requisito)
 const FETCH_TIMEOUT_MS = 10_000;  // timeout por petición HTTP
-const API_BASE = 'http://localhost:3000/api/v1';
+
+// Ruta base de la API: SIEMPRE relativa (/api/v1).
+// - Producción (Docker + nginx): nginx proxya /api al backend, misma origin.
+// - Desarrollo (Astro dev): el dev server de Vite proxya /api -> localhost:3000
+//   (ver server.proxy en astro.config.mjs).
+// Al ser siempre misma origin, no hay CORS y funciona bajo cualquier dominio
+// (incluida la ruta del Cloudflare Tunnel: homelab-monitor.acevedojavier.dev).
+const API_BASE = '/api/v1';
 const MAX_RETRIES = 3;            // reintentos ante fallo de red
 const RETRY_DELAY_MS = 3_000;     // espera entre reintentos
+
+// Intervalo de polling en ms. Es mutable porque el usuario puede cambiarlo
+// desde el select #poll-interval del header. Valor por defecto: 30s (coincide
+// con el select marcado como selected en Header.astro).
+let pollIntervalMs = 30_000;
 
 // ============================================================================
 // ESTADO INTERNO DEL MÓDULO
@@ -48,6 +59,7 @@ let isPolling = false;            // flag para evitar polls concurrentes
 let gridEl = null;
 let refreshBtn = null;
 let autoRefreshCb = null;
+let pollIntervalSel = null;
 let lastUpdatedEl = null;
 let summaryUpEl = null;
 let summaryDegradedEl = null;
@@ -58,6 +70,8 @@ let addServiceNameInput = null;
 let addServiceUrlInput = null;
 let addServiceBtn = null;
 let addServiceFeedback = null;
+let backendAlertEl = null;     // banner visible cuando el backend está caído
+let lastGoodTimestamp = null;  // timestamp ISO de la última actualización exitosa
 
 // ============================================================================
 // UTILIDADES
@@ -92,6 +106,52 @@ function latencyColor(ms) {
 function escapeHtml(str) {
   const map = { '&': '&', '<': '<', '>': '>', '"': '"', "'": "'" };
   return String(str).replace(/[&<>"']/g, (c) => map[c]);
+}
+
+// ============================================================================
+// ALERTA DE BACKEND CAÍDO / DATOS DESACTUALIZADOS
+// ============================================================================
+// Cuando el backend no responde, los datos en pantalla dejan de ser reales:
+// son la última foto que se tomó. Mostramos un banner visible + marcamos el
+// grid como "stale" (atenuado) para que quede claro que NO son datos en vivo.
+// La foto anterior se conserva (es útil saber el último estado conocido),
+// pero queda señalada como desactualizada.
+
+// Crea y muestra el banner. Reutiliza el nodo si ya existe (idempotente).
+function showBackendAlert(message) {
+  if (!gridEl) return;
+
+  if (!backendAlertEl) {
+    backendAlertEl = document.createElement('div');
+    backendAlertEl.setAttribute('data-backend-alert', '');
+    backendAlertEl.setAttribute('role', 'alert');
+    gridEl.parentElement?.insertBefore(backendAlertEl, gridEl);
+  }
+
+  const knownAt = lastGoodTimestamp
+    ? ` · Última actualización válida: ${fmtTime(lastGoodTimestamp)}`
+    : ' · Aún no hay datos reales';
+
+  backendAlertEl.className = 'backend-alert';
+  backendAlertEl.innerHTML = `
+    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
+    <span class="font-semibold">Backend no disponible</span>
+    <span class="backend-alert-detail">${escapeHtml(message)}${escapeHtml(knownAt)}</span>
+  `;
+
+  // Marca las tarjetas como desactualizadas (se atenúan via CSS).
+  gridEl.classList.add('is-stale');
+}
+
+// Oculta el banner y quita el marcado de stale al recuperar conexión.
+function clearBackendAlert() {
+  if (backendAlertEl) {
+    backendAlertEl.remove();
+    backendAlertEl = null;
+  }
+  gridEl?.classList.remove('is-stale');
 }
 
 // ============================================================================
@@ -141,6 +201,7 @@ function updateStatusBadge(serviceName, status) {
 
 // Actualiza la barra de latencia de una tarjeta concreta.
 // La barra es un <div> con width y background dinámicos.
+// También tiñe el número del valor en ms con el mismo color (verde/amarillo/rojo).
 function updateLatencyBar(serviceName, latencyAvg) {
   const card = gridEl?.querySelector(`[data-service-name="${CSS.escape(serviceName)}"]`);
   if (!card) return;
@@ -149,8 +210,12 @@ function updateLatencyBar(serviceName, latencyAvg) {
   if (!fill) return;
 
   const pct = latencyAvg !== null ? Math.min((latencyAvg / 300) * 100, 100) : 0;
-  fill.style.width = `${pct}%`;
-  fill.style.background = latencyColor(latencyAvg);
+  const color = latencyColor(latencyAvg);
+  fill.style.width = `${Math.max(pct, 6)}%`;
+  fill.style.background = color;
+
+  const value = card.querySelector('[data-metric="latency-avg"]');
+  if (value) value.style.color = color;
 }
 
 // Actualiza el texto de latencia promedio en la tarjeta
@@ -224,13 +289,10 @@ function renderGrid(services) {
 
   services.forEach((svc) => {
     const article = document.createElement('article');
-    article.className = 'card p-5 flex flex-col gap-4 animate-fade-in';
+    article.className = 'card p-2 flex flex-col gap-1.5 sm:gap-1.5 lg:gap-2 animate-fade-in';
     article.dataset.serviceName = svc.name;
     if (svc.id) article.dataset.serviceId = svc.id;
     article.dataset.status = svc.status;
-
-    const borderColors = { up: 'border-status-up', degraded: 'border-status-degraded', down: 'border-status-down', offline: 'border-status-down' };
-    article.classList.add('border-l-4', borderColors[svc.status]);
 
     // Solo los servicios gestionados (agregados via UI, managed: true) son
     // borrables; los de .env no. Mostramos el boton solo en esos casos.
@@ -242,52 +304,53 @@ function renderGrid(services) {
       : '';
 
     article.innerHTML = `
-      <header class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <h2 class="font-semibold text-text-primary truncate">${escapeHtml(svc.name)}</h2>
-          <p class="text-xs text-text-muted truncate mt-0.5 font-mono">${escapeHtml(svc.url)}</p>
+      <div class="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-3">
+        <div class="min-w-0 lg:w-36 shrink-0">
+          <h2 class="font-semibold text-lg text-text-primary truncate" title="${escapeHtml(svc.name)}">${escapeHtml(svc.name)}</h2>
+          <p class="text-xs text-text-muted truncate font-mono" title="${escapeHtml(svc.url)}">${escapeHtml(svc.url)}</p>
         </div>
+
         <div class="flex items-center shrink-0 gap-2">
           <div class="status-badge-wrapper"></div>
+        </div>
+
+        <dl class="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-0.5 text-center flex-1" role="list">
+          <div>
+            <dt class="metric-label">Lat. media</dt>
+            <dd class="metric-value" data-metric="latency-avg" style="color:${latencyColor(svc.latencyMs?.avg ?? null)}" aria-label="Latencia promedio">${svc.latencyMs ? fmtLatency(svc.latencyMs.avg) : '—'}</dd>
+            <div class="mt-1.5 h-2 bg-border rounded-full overflow-hidden" data-latency-bar>
+              <div class="h-full rounded-full transition-all duration-500 ease-out" data-latency-fill style="width:${svc.latencyMs ? Math.max(Math.min((svc.latencyMs.avg ?? 0) / 300 * 100, 100), 6) : 0}%;background:${latencyColor(svc.latencyMs?.avg ?? null)}"></div>
+            </div>
+          </div>
+          <div>
+            <dt class="metric-label">Mín</dt>
+            <dd class="metric-value text-text-muted" data-metric="latency-min">${svc.latencyMs ? fmtLatency(svc.latencyMs.min) : '—'}</dd>
+          </div>
+          <div>
+            <dt class="metric-label">Máx</dt>
+            <dd class="metric-value text-text-muted" data-metric="latency-max">${svc.latencyMs ? fmtLatency(svc.latencyMs.max) : '—'}</dd>
+          </div>
+          <div>
+            <dt class="metric-label">Disponib.</dt>
+            <dd class="metric-value" data-metric="availability">${svc.probes.availability}%</dd>
+          </div>
+        </dl>
+
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-text-muted shrink-0">
+          <span class="flex items-center gap-1">
+            <span class="px-1.5 py-0.5 bg-dark rounded text-text-primary font-mono" data-metric="status-code">${svc.statusCode !== null ? svc.statusCode : '—'}</span>
+            <span>HTTP</span>
+          </span>
+          <span class="flex items-center gap-1">
+            <span class="font-mono">${svc.probes.succeeded}/${svc.probes.total}</span>
+            <span>probes</span>
+          </span>
+          <span class="flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <time datetime="${escapeHtml(svc.checkedAt)}">${fmtTime(svc.checkedAt)}</time>
+          </span>
           ${removeBtn}
         </div>
-      </header>
-
-      <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4 text-center" role="list">
-        <div class="col-span-2 sm:col-span-1">
-          <dt class="metric-label">Lat. media</dt>
-          <dd class="metric-value text-status-up" data-metric="latency-avg" aria-label="Latencia promedio">${svc.latencyMs ? fmtLatency(svc.latencyMs.avg) : '—'}</dd>
-          <div class="mt-1.5 h-1.5 bg-border rounded-full overflow-hidden" data-latency-bar>
-            <div class="h-full rounded-full transition-all duration-500 ease-out" data-latency-fill style="width:${svc.latencyMs ? Math.min((svc.latencyMs.avg ?? 0) / 300 * 100, 100) : 0}%;background:${latencyColor(svc.latencyMs?.avg ?? null)}"></div>
-          </div>
-        </div>
-        <div>
-          <dt class="metric-label">Mín</dt>
-          <dd class="metric-value text-text-muted" data-metric="latency-min">${svc.latencyMs ? fmtLatency(svc.latencyMs.min) : '—'}</dd>
-        </div>
-        <div>
-          <dt class="metric-label">Máx</dt>
-          <dd class="metric-value text-text-muted" data-metric="latency-max">${svc.latencyMs ? fmtLatency(svc.latencyMs.max) : '—'}</dd>
-        </div>
-        <div>
-          <dt class="metric-label">Disponib.</dt>
-          <dd class="metric-value" data-metric="availability">${svc.probes.availability}%</dd>
-        </div>
-      </dl>
-
-      <div class="flex flex-wrap items-center gap-3 text-xs text-text-muted border-t border-border pt-3">
-        <span class="flex items-center gap-1">
-          <span class="px-1.5 py-0.5 bg-dark rounded text-text-primary font-mono" data-metric="status-code">${svc.statusCode !== null ? svc.statusCode : '—'}</span>
-          <span>HTTP</span>
-        </span>
-        <span class="flex items-center gap-1">
-          <span class="font-mono">${svc.probes.succeeded}/${svc.probes.total}</span>
-          <span>probes</span>
-        </span>
-        <span class="flex items-center gap-1 ml-auto">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          <time datetime="${escapeHtml(svc.checkedAt)}">${fmtTime(svc.checkedAt)}</time>
-        </span>
       </div>
 
       ${svc.lastError ? `<div class="text-xs text-status-down/80 bg-status-down/5 rounded p-2 font-mono break-all mt-2" data-error role="alert">Último error: ${escapeHtml(svc.lastError)}</div>` : ''}
@@ -372,6 +435,11 @@ async function poll() {
       console.warn('[liveMetrics] No se recibieron servicios del backend');
     }
 
+    // Éxito: los datos son frescos, guardamos el timestamp de referencia
+    // y aseguramos que no quede ningún banner ni marcado de desactualizado.
+    lastGoodTimestamp = timestamp;
+    clearBackendAlert();
+
     renderGrid(services);
     updateHeaderSummary(summary);
     updateLastUpdated(timestamp);
@@ -390,12 +458,13 @@ async function poll() {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     console.error(`[liveMetrics] Error al obtener métricas: ${message}`);
 
+    // Alerta inmediata y visible: el backend no está respondiendo. Las tarjetas
+    // en pantalla son datos del último poll exitoso, ya no en vivo.
+    showBackendAlert(message);
+
     if (retryCount < MAX_RETRIES) {
       retryCount++;
       console.warn(`[liveMetrics] Reintentando (${retryCount}/${MAX_RETRIES})...`);
-      if (lastUpdatedEl) {
-        lastUpdatedEl.textContent = `Reintentando (${retryCount}/${MAX_RETRIES})...`;
-      }
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
       if (isPolling && autoRefreshCb?.checked) {
         scheduleNextPoll();
@@ -404,9 +473,6 @@ async function poll() {
     }
 
     console.error(`[liveMetrics] Agotados ${MAX_RETRIES} reintentos: ${message}`);
-    if (lastUpdatedEl) {
-      lastUpdatedEl.textContent = `Error: ${message}`;
-    }
   } finally {
     // --- Siempre: programamos el próximo poll ---
     // IMPORTANTE: usamos setTimeout recursivo, NO setInterval.
@@ -423,12 +489,13 @@ async function poll() {
   }
 }
 
-// Programa el siguiente poll con setTimeout (evita solapamiento)
+// Programa el siguiente poll con setTimeout (evita solapamiento).
+// Usa el intervalo actual (pollIntervalMs), editable desde el select del header.
 function scheduleNextPoll() {
   if (pollTimer) clearTimeout(pollTimer);
   pollTimer = setTimeout(() => {
     poll();
-  }, POLL_INTERVAL_MS);
+  }, pollIntervalMs);
 }
 
 // ============================================================================
@@ -520,6 +587,7 @@ function init() {
   gridEl = document.getElementById('service-grid');
   refreshBtn = document.getElementById('refresh-btn');
   autoRefreshCb = document.getElementById('auto-refresh');
+  pollIntervalSel = document.getElementById('poll-interval');
   lastUpdatedEl = document.getElementById('last-updated');
   summaryUpEl = document.querySelector('[data-summary="up"]');
   summaryDegradedEl = document.querySelector('[data-summary="degraded"]');
@@ -536,20 +604,32 @@ function init() {
     return;
   }
 
+  // Helper: muestra/oculta el círculo verde del botón Actualizar.
+  // En auto-refresh ON gira de forma continua (indica que el polling está vivo);
+  // en OFF se oculta. Durante una actualización manual aparece temporalmente.
+  // Usamos style.display (no la clase `hidden` de Tailwind) porque esta utilidad
+  // no se genera en el CSS: el script vive en public/ y queda fuera del escaneo.
+  const setRefreshSpinner = (visible) => {
+    const spinner = refreshBtn?.querySelector('.animate-spin');
+    if (spinner) spinner.style.display = visible ? '' : 'none';
+  };
+
   // Botón de refresh manual
   if (refreshBtn) {
     refreshBtn.addEventListener('click', async () => {
-      if (isPolling) return; // evita doble click
+      if (isPolling) return; // evita doble click / solaparse con un poll en curso
       refreshBtn.disabled = true;
       refreshBtn.classList.add('opacity-50', 'cursor-not-allowed');
-      const spinner = refreshBtn.querySelector('.animate-spin');
-      if (spinner) spinner.classList.remove('hidden');
+      setRefreshSpinner(true);
 
-      await poll(); // un poll inmediato
-
-      refreshBtn.disabled = false;
-      refreshBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-      if (spinner) spinner.classList.add('hidden');
+      try {
+        await poll(); // un poll inmediato (si auto-refresh está OFF no encadena)
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        // Restauramos el estado visual según auto-refresh
+        setRefreshSpinner(autoRefreshCb?.checked ?? false);
+      }
     });
   }
 
@@ -557,10 +637,28 @@ function init() {
   if (autoRefreshCb) {
     autoRefreshCb.addEventListener('change', () => {
       if (autoRefreshCb.checked) {
+        setRefreshSpinner(true);
         poll(); // arranca con una carga inmediata
       } else {
         isPolling = false;
         if (pollTimer) clearTimeout(pollTimer); // detiene el ciclo
+        setRefreshSpinner(false);
+      }
+    });
+    // Estado visual inicial según el checkbox
+    setRefreshSpinner(autoRefreshCb.checked);
+  }
+
+  // Select de intervalo de auto-refresh: cambia pollIntervalMs y, si el
+  // auto-refresh está activo, reinicia el ciclo con el nuevo intervalo
+  // (primero cancela el poll programado, luego hace una carga inmediata).
+  if (pollIntervalSel) {
+    pollIntervalSel.addEventListener('change', () => {
+      const ms = parseInt(pollIntervalSel.value, 10);
+      if (Number.isFinite(ms) && ms > 0) pollIntervalMs = ms;
+      if (autoRefreshCb?.checked) {
+        if (pollTimer) clearTimeout(pollTimer);
+        poll(); // carga inmediata con el nuevo intervalo; poll() re-encadena
       }
     });
   }

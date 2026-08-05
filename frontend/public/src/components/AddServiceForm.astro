@@ -10,9 +10,9 @@
 const { } = Astro.props;
 ---
 
-<form id="add-service-form" class="mb-6" novalidate>
-  <div class="card p-5">
-    <div class="flex flex-col sm:flex-row sm:items-end gap-4">
+<form id="add-service-form" class="mb-3" novalidate>
+  <div class="card p-3">
+    <div class="flex flex-col sm:flex-row sm:items-end gap-3">
       <div class="flex-1 min-w-0">
         <label for="svc-name" class="metric-label block mb-1">Nombre (opcional)</label>
         <input
@@ -47,7 +47,7 @@ const { } = Astro.props;
       </button>
     </div>
 
-    <p id="add-service-feedback" class="mt-3 text-sm text-text-muted" role="status" aria-live="polite">
+    <p id="add-service-feedback" class="mt-2 text-xs text-text-muted" role="status" aria-live="polite">
       Tip: si escribes solo una IP o URL, el nombre se deriva del hostname automáticamente.
     </p>
   </div>

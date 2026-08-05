@@ -70,7 +70,6 @@ const fmtTime = (iso: string) => {
     <button
       id="refresh-btn"
       class="px-4 py-2 bg-card border border-border rounded-lg text-text-primary font-medium hover:border-status-up/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-      disabled={isLoading}
       aria-label="Actualizar métricas ahora"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></path></svg>
@@ -83,10 +82,24 @@ const fmtTime = (iso: string) => {
         type="checkbox"
         id="auto-refresh"
         checked
-        class="w-4 h-4 rounded border-border bg-dark text-status-up focus:ring-status-up focus:ring-2 appearance-none checked:bg-status-up checked:border-status-up transition-colors"
-        aria-label="Actualización automática cada 30s"
+        class="w-4 h-4 rounded border-2 border-text-muted bg-dark text-status-up focus:ring-status-up focus:ring-2 appearance-none checked:bg-status-up checked:border-status-up transition-colors"
+        aria-label="Actualización automática"
       />
-      <span class="text-sm text-text-muted">Auto-refresh (30s)</span>
+      <span class="text-sm text-text-muted">Auto-refresh</span>
+    </label>
+
+    <label class="flex items-center gap-1.5 cursor-pointer">
+      <span class="text-sm text-text-muted">cada</span>
+      <select
+        id="poll-interval"
+        class="bg-dark border border-border rounded-lg text-sm text-text-primary px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-status-up"
+        aria-label="Intervalo de actualización automática"
+      >
+        <option value="5000">5 segundos</option>
+        <option value="15000">15 segundos</option>
+        <option value="30000" selected>30 segundos</option>
+        <option value="60000">1 minuto</option>
+      </select>
     </label>
   </div>
 </header>
