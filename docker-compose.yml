@@ -77,11 +77,6 @@ services:
     networks:
       - monitor-net
     restart: unless-stopped
-    depends_on:
-      - backend
-    networks:
-      - monitor-net
-    restart: unless-stopped
 
 networks:
   # Red interna privada (bridge por defecto)
