@@ -1,0 +1,30 @@
+# ============================================================================
+# .dockerignore — Frontend (contexto de build optimizado)
+# ----------------------------------------------------------------------------
+# Reduce el tamaño del contexto enviado al daemon de Docker (build más rápido)
+# y evita filtrar al interior de la imagen archivos innecesarios o sensibles.
+# ============================================================================
+
+# Dependencias (se reinstalan dentro del multi-stage)
+node_modules
+
+# Artefactos de build (se generan dentro del contenedor)
+dist
+.astro
+.next
+
+# Control de versiones
+.git
+.gitignore
+
+# Entornos locales (nunca deben entrar a la imagen)
+.env
+.env.local
+.env.*.local
+
+# Logs y basura del sistema
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+*.log
