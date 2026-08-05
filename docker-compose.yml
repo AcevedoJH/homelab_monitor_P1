@@ -51,12 +51,14 @@ services:
     build:
       context: ./frontend/public
       dockerfile: Dockerfile
-      # Build args inyectados durante la compilación. El frontend actual usa
-      # ruta relativa /api (API_BASE en liveMetrics.js), por lo que NO requiere
-      # variables en build; el mecanismo queda listo por si se necesitan
-      # (p. ej. PUBLIC_API_BASE para sustituir import.meta.env.PUBLIC_*).
+      # Build args inyectados en la etapa `builder` del Dockerfile.
+      # PUBLIC_API_BASE es el equivalente a NEXT_PUBLIC_API_URL: la URL de la
+      # API vista desde el navegador (subdominio con Cloudflare Tunnel).
+      # La app hoy usa ruta relativa /api (misma origin vía proxy nginx), pero
+      # queda disponible en el entorno de build por si hiciera falta
+      # import.meta.env.PUBLIC_API_BASE.
       args:
-        PUBLIC_API_BASE: ${PUBLIC_API_BASE:-}
+        PUBLIC_API_BASE: ${PUBLIC_API_BASE:-https://homelab-monitor.acevedojavier.dev/api}
     # ÚNICO puerto publicado hacia el host: la puerta de entrada web.
     # El proxy /api de nginx redirige internamente al backend.
     # El default 4321 coincide con la ruta configurada en Cloudflare Tunnel.
@@ -70,6 +72,11 @@ services:
       resources:
         limits:
           memory: 2048M
+    depends_on:
+      - backend
+    networks:
+      - monitor-net
+    restart: unless-stopped
     depends_on:
       - backend
     networks:

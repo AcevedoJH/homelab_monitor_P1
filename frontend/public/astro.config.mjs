@@ -7,7 +7,12 @@ export default defineConfig({
   // output: 'static' (default) genera HTML estático en build.
   // El cliente (liveMetrics.js) hace fetch a la API en el navegador.
   // Esto evita problemas de SSR/adapter y es más simple para un dashboard.
+  // [Equivale a output: 'standalone' de Next.js: artefacto optimizado sin
+  //  runtime de Node; el runner solo sirve los archivos generados.]
   output: 'static',
+  // Compresión del HTML en build. [Equivale a swcMinify: true de Next.js:
+  //  el output de producción es el mínimo posible, menor huella en disco.]
+  compressHTML: true,
   // Integración oficial de Tailwind: inyecta los estilos y purga clases no usadas en build.
   integrations: [tailwind()],
   // Configuración del servidor de desarrollo
