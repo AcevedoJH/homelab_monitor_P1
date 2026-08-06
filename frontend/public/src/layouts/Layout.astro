@@ -13,6 +13,8 @@ interface Props {
 
 const { title, description = 'Monitor de servicios homelab - Dashboard en tiempo real' } = Astro.props;
 
+const year = new Date().getFullYear();
+
 // Importamos el CSS global (Tailwind + clases personalizadas @layer components
 // como .card, .status-badge, .backend-alert). En Astro, un archivo CSS en
 // src/ debe importarse explicitamente para que se incluya en el build.
@@ -38,6 +40,39 @@ import '../styles/global.css';
       <slot />
       <!-- Aquí se inyecta el contenido de cada página (index.astro, etc.) -->
     </main>
+
+    <!-- Footer: copyright + enlaces (aviso legal, portfolio y código fuente) -->
+    <footer class="border-t border-border mt-12">
+      <div class="page-container flex flex-col sm:flex-row items-center justify-between gap-3 py-6 text-sm text-text-muted">
+        <p>© {year} Javier Acevedo H. Todos los derechos reservados.</p>
+        <nav class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2" aria-label="Enlaces del sitio">
+          <a
+            href="https://acevedojavier.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-text-primary hover:underline underline-offset-4 transition-colors"
+          >
+            Proyecto Demo para Portafolio
+          </a>
+          <a
+            href="https://github.com/AcevedoJH/homelab_monitor_P1.git"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-text-primary hover:underline underline-offset-4 transition-colors"
+          >
+            Código Fuente en GitHub
+          </a>
+          <a
+            href="https://acevedojavier.dev/aviso-legal/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-text-primary hover:underline underline-offset-4 transition-colors"
+          >
+            Aviso legal
+          </a>
+        </nav>
+      </div>
+    </footer>
 
     <!-- Script global mínimo: registra Service Worker si existe (PWA futuro) -->
     <script is:inline>
