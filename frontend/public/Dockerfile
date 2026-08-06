@@ -46,10 +46,12 @@ WORKDIR /app
 # Reutilizamos node_modules de la etapa deps (no reinstalamos).
 COPY --from=deps /app/node_modules ./node_modules
 
-# Código fuente, configuración y scripts públicos.
+# Código fuente, configuración y directorio público (publicDir de Astro).
+# public/ contiene los assets servidos tal cual (p. ej. scripts/liveMetrics.js).
+# NOTA: solo lo que vive en public/ se copia a dist/ en el build.
 COPY package.json astro.config.mjs tailwind.config.mjs tsconfig.json ./
 COPY src ./src
-COPY scripts ./scripts
+COPY public ./public
 
 # Genera el sitio estático optimizado en /app/dist.
 RUN npm run build
