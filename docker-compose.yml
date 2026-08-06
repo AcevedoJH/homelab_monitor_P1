@@ -30,8 +30,9 @@ services:
       # Dockerfile, el proxy nginx (backend:3000) y el healthcheck.
       - PORT=3000
       # Servicios estáticos a monitorizar (formato nombre=url, comas).
-      # Vacío ⇒ el backend detecta el gateway local + DNS públicos (fallback).
-      - MONITOR_SERVICES=${MONITOR_SERVICES:-}
+      # Default: solo DNS públicos (Google + Cloudflare). NO incluimos el
+      # gateway local para no exponer tu router a visitantes de la app.
+      - MONITOR_SERVICES=${MONITOR_SERVICES:-google=https://dns.google,cloudflare=https://1.1.1.1}
       - REQUEST_TIMEOUT_MS=${REQUEST_TIMEOUT_MS:-5000}
       - PROBES=${PROBES:-5}
     # Persistencia de los servicios agregados desde la interfaz (UI).
@@ -48,6 +49,33 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+
+    # ===================== AISLAMIENTO / HARDENING DEL BACKEND =====================
+    # Sistema de archivos de SOLO LECTURA: el backend no puede escribir en el
+    # rootfs. Solo persiste en el volumen /app/data (services.json) y usa el
+    # tmpfs /tmp para cualquier dato temporal.
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Se DROP todas las capacidades de Linux (capabilities). El proceso solo
+    # hace TCP client/server en puertos altos (>1024), que no requieren caps.
+    cap_drop:
+      - ALL
+    # Evita escalada por binarios setuid/setgid dentro del contenedor.
+    security_opt:
+      - no-new-privileges:true
+    # Tini como PID 1: reaps procesos huérfanos y gestiona señales en los
+    # apagados (sin dejar zombies ni peticiones sin terminación limpia).
+    init: true
+    # Límite de procesos del contenedor: previene forks en bucle u huérfanos.
+    pids_limit: 100
+    # Margen para que el SIGTERM de `docker stop` cierre con gracia.
+    stop_grace_period: 15s
+    # Límite de memoria del contenedor backend (protección del host).
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   # ------------------ Frontend: Astro estático + nginx ------------------
   frontend:
@@ -80,6 +108,21 @@ services:
     networks:
       - monitor-net
     restart: unless-stopped
+
+    # ===================== AISLAMIENTO / HARDENING DEL FRONTEND =====================
+    # nginx ya corre como usuario no-root (nodejs, uid 1001).
+    # Sin capacidades de Linux (nginx solo sirve estático y proxya a 8080).
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    pids_limit: 100
+    stop_grace_period: 15s
+    # Nota: se omite read_only aquí a propósito: nginx (no-root) necesita
+    # escribir /var/log/nginx y /var/cache/nginx, que un tmpfs de compose no
+    # puede ceder a un usuario no-root sin romperlo. El resto de hardening
+    # (sin caps, sin suid, init, límites) cubre la superficie de riesgo.
 
 networks:
   # Red interna privada (bridge por defecto)

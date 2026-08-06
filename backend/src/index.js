@@ -23,6 +23,24 @@ app.disable('x-powered-by');
 // parsea cuerpos JSON en las peticiones (preparado para POST futuros).
 app.use(express.json());
 
+// PRIVACIDAD: la API NO usa sesiones ni cookies de seguimiento. Para
+// garantizarlo con minimizacion de datos, eliminamos cualquier cabecera
+// Set-Cookie justo antes de enviar la respuesta: si en el futuro una ruta
+// intentara crear una cookie (incluso de sesion no esencial), se descarta.
+// (El frontend estático, ademas, no emite ni espera cookies.)
+app.use((req, res, next) => {
+    const originalWriteHead = res.writeHead;
+    res.writeHead = function patchedWriteHead(status, ...args) {
+        this.removeHeader('Set-Cookie');
+        // si las cabeceras van como objeto, tambien se limpian ahi.
+        if (args[0] && typeof args[0] === 'object') {
+            delete args[0]['Set-Cookie'];
+        }
+        return originalWriteHead.call(this, status, ...args);
+    };
+    next();
+});
+
 // CORS: whitelist con localhost Y 127.0.0.1 (el navegador los trata como
 // orígenes distintos). Si el origen de la petición no está permitido,
 // no se envía la cabecera y el navegador bloquea el fetch (síntoma típico:
