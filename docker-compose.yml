@@ -26,6 +26,9 @@ services:
     # (Para depurar puntualmente se podría añadir `ports: ["3000:3000"]`.)
     environment:
       - NODE_ENV=production
+      # Puerto interno (red de Docker). Debe coincidir con EXPOSE del
+      # Dockerfile, el proxy nginx (backend:3000) y el healthcheck.
+      - PORT=3000
       # Servicios estáticos a monitorizar (formato nombre=url, comas).
       # Vacío ⇒ el backend detecta el gateway local + DNS públicos (fallback).
       - MONITOR_SERVICES=${MONITOR_SERVICES:-}

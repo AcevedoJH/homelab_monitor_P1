@@ -26,11 +26,15 @@ const DEFAULT_PROBES = 5;
 // Convierte un string a entero positivo. Si no es valido, lanza un error claro
 // para que el operador sepa exactamente que variable corrigio mal.
 function parsePositiveInt(raw, defaultValue, varName) {
+  // Variable ausente o vacia: usamos el default. Sin esto, un entorno sin la
+  // variable (p. ej. el contenedor Docker, donde no hay .env) rompe el
+  // arranque aunque exista un valor por defecto razonable.
+  if (raw === undefined || raw === '') return defaultValue;
   const n = Number.parseInt(raw, 10);
   if (Number.isNaN(n) || n < 0) {
     throw new Error(`Configuracion invalida: ${varName} debe ser un entero >= 0`);
   }
-  return raw === undefined || raw === '' ? defaultValue : n;
+  return n;
 }
 
 // Convierte la lista de servicios "nombre=url,nombre2=url2" en un arreglo de
