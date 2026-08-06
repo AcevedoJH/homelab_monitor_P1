@@ -27,8 +27,10 @@ const lastUpdated = new Date().toISOString();
   <!-- Grid de servicios (inicialmente vacío, se hidrata vía liveMetrics.js) -->
   <ServiceGrid services={[]} isLoading={true} />
 
-  <!-- Script de polling cliente (island): se ejecuta en el navegador
-       y hace fetch a /api/metrics cada 5 segundos.
-       client:load = hidrata la isla inmediatamente al cargar la página. -->
-  <script type="module" src="/scripts/liveMetrics.js" client:load></script>
+  <!-- Script de polling cliente: se ejecuta en el navegador y hace fetch a
+       /api/metrics según el intervalo configurado (default 30s).
+       is:inline = Astro emite el tag tal cual (sin bundlear): apunta a un
+       archivo de public/ (scripts/liveMetrics.js). Con client:load el build
+       estático DESCARTABA el tag y el polling nunca corría. -->
+  <script is:inline src="/scripts/liveMetrics.js"></script>
 </BaseLayout>
