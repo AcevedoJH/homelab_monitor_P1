@@ -67,15 +67,14 @@ services:
     # Tini como PID 1: reaps procesos huérfanos y gestiona señales en los
     # apagados (sin dejar zombies ni peticiones sin terminación limpia).
     init: true
-    # Límite de procesos del contenedor: previene forks en bucle u huérfanos.
-    pids_limit: 100
     # Margen para que el SIGTERM de `docker stop` cierre con gracia.
     stop_grace_period: 15s
-    # Límite de memoria del contenedor backend (protección del host).
+    # Límite de memoria y procesos del contenedor backend (protección del host).
     deploy:
       resources:
         limits:
           memory: 256M
+          pids: 100
 
   # ------------------ Frontend: Astro estático + nginx ------------------
   frontend:
@@ -103,6 +102,7 @@ services:
       resources:
         limits:
           memory: 2048M
+          pids: 100
     depends_on:
       - backend
     networks:
@@ -117,7 +117,6 @@ services:
     security_opt:
       - no-new-privileges:true
     init: true
-    pids_limit: 100
     stop_grace_period: 15s
     # Nota: se omite read_only aquí a propósito: nginx (no-root) necesita
     # escribir /var/log/nginx y /var/cache/nginx, que un tmpfs de compose no
