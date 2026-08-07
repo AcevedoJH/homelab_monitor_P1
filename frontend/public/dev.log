@@ -105,3 +105,18 @@ AggregateError [ECONNREFUSED]:
     at internalConnectMultiple (node:net:1194:18)
     at afterConnectMultiple (node:net:1784:7)
 10:36:26 [404] /sw.js 1ms
+10:36:42 [watch] tailwind.config.mjs
+10:36:42 [watch] src/layouts/Layout.astro
+10:36:42 [watch] src/components/AddServiceForm.astro
+10:36:43 [watch] src/layouts/Layout.astro
+10:36:43 [watch] tailwind.config.mjs
+10:36:43 [watch] src/components/AddServiceForm.astro
+10:36:43 [200] / 208ms
+10:36:43 [200] / 209ms
+10:36:43 [200] / 209ms
+10:36:43 [404] /.well-known/appspecific/com.chrome.devtools.json 1ms
+10:36:44 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:36:44 [404] /sw.js 1ms
