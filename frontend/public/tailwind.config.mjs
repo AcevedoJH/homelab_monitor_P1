@@ -23,6 +23,8 @@ export default {
         'text-primary': '#E8E8E8',
         // Texto secundario/muted
         'text-muted': '#888888',
+        // Acento de enlaces (azul) para destacarlos sobre el fondo oscuro
+        accent: '#3B82F6', // blue-500
         // Acentos de estado (semánticos, no solo "green-500")
         'status-up': '#22C55E',       // green-500
         'status-degraded': '#FACC15', // yellow-400

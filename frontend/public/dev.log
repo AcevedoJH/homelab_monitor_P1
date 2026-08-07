@@ -1,0 +1,15 @@
+
+> homelab-monitor-frontend@0.1.0 dev
+> astro dev
+
+10:29:26 [types] Generated 5ms
+
+ astro  v4.16.19 ready in 440 ms
+
+┃ Local    http://localhost:4321/
+┃ Network  http://100.73.20.8:4321/
+           http://192.168.0.134:4321/
+           http://172.18.112.1:4321/
+
+10:29:27 watching for file changes...
+10:29:36 [200] / 16ms
