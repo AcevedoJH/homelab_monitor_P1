@@ -13,3 +13,57 @@
 
 10:29:27 watching for file changes...
 10:29:36 [200] / 16ms
+10:29:47 [200] / 10ms
+10:29:47 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:29:47 [404] /sw.js 3ms
+10:30:05 [404] /.well-known/appspecific/com.chrome.devtools.json 1ms
+10:30:08 [200] / 10ms
+10:30:08 [404] /.well-known/appspecific/com.chrome.devtools.json 1ms
+10:30:08 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:30:09 [404] /sw.js 1ms
+10:30:42 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:31:15 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:31:48 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:32:18 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:32:48 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:33:18 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:33:21 [watch] src/components/AddServiceForm.astro
+10:33:22 [200] / 5ms
+10:33:22 [404] /.well-known/appspecific/com.chrome.devtools.json 1ms
+10:33:22 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:33:22 [404] /sw.js 1ms
+10:33:55 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
+10:34:28 [ERROR] [vite] [31mhttp proxy error: /api/v1/metrics[39m
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1194:18)
+    at afterConnectMultiple (node:net:1784:7)
