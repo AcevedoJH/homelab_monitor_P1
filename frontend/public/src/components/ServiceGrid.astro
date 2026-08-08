@@ -62,12 +62,12 @@ const { services, isLoading = false } = Astro.props;
   <!-- Overlay de carga (skeleton) mientras fetchea datos -->
   {isLoading && services.length === 0 && (
     <div class="col-span-full" aria-live="polite" aria-busy="true">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} class="card p-5 animate-pulse space-y-4">
+      {Array.from({ length: 4 }).map((_, _i) => (
+        <div class="card p-5 animate-pulse space-y-4">
           <div class="h-4 w-3/4 bg-border rounded"></div>
           <div class="grid grid-cols-4 gap-3">
-            {Array.from({ length: 4 }).map((_, j) => (
-              <div key={j} class="text-center">
+            {Array.from({ length: 4 }).map((_, _j) => (
+              <div class="text-center">
                 <div class="h-8 w-full bg-border rounded"></div>
                 <div class="h-3 w-1/2 mx-auto mt-1 bg-border rounded"></div>
               </div>

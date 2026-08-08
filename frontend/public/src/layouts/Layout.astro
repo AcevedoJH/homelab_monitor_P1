@@ -29,9 +29,11 @@ import '../styles/global.css';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
     <title>{title}</title>
-    <!-- Preconnect a la API backend para reducir latencia en primera petición -->
-    <link rel="preconnect" href="http://localhost:3000" crossorigin />
-    <!-- Favicon simple (SVG inline para evitar request extra) -->
+    <!-- NOTA: sin preconnect a la API. En producción la API es misma origin
+         (nginx proxya /api al backend), y la CSP (connect-src 'self') impide
+         conexiones a localhost:3000 desde el navegador. -->
+    <!-- Favicon simple (SVG inline para evitar request extra).
+         La CSP del frontend permite img-src data: para este caso. -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>" />
   </head>
   <body class="min-h-screen bg-dark text-text-primary">
@@ -76,8 +78,11 @@ import '../styles/global.css';
       </div>
     </footer>
 
-    <!-- Script global mínimo: registra Service Worker si existe (PWA futuro) -->
-    <script is:inline>
+    <!-- Script global mínimo: registra Service Worker si existe (PWA futuro).
+         NOTA: script EXTERNO (sin is:inline) para que Astro lo empaquete en un
+         archivo /_astro/*.js y la CSP del frontend (script-src 'self') lo
+         permita sin recurrir a 'unsafe-inline'. -->
+    <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').catch(() => { /* silent */ });

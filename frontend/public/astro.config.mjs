@@ -30,6 +30,16 @@ export default defineConfig({
         '/api': 'http://localhost:3000',
       },
     },
+    // SECURIDAD (CSP): assetsInlineLimit = 0 evita que Astro/Vite INLINEen en
+    // el HTML los scripts y estilos "hoisted" (bundle) pequeños.
+    //   - Sin esto, un <script type="module"> inline en <head> sería BLOQUEADO
+    //     por la CSP del frontend (script-src 'self') y la UI dejaría de
+    //     funcionar (reloj, service worker).
+    //   - Con 0, TODO se emite como archivo externo /_astro/*.js|*.css, que
+    //     la CSP permite con 'self'. Referencia: plugin-hoisted-scripts de Astro.
+    build: {
+      assetsInlineLimit: 0,
+    },
   },
   // Prefijo de ruta si desplegamos en subpath (p. ej. /monitor/)
   // base: '/monitor/',
