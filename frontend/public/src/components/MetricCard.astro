@@ -5,6 +5,8 @@
 // último error y timestamp. Diseñada para ser consumida en un grid adaptativo.
 // ============================================================================
 
+import StatusBadge from './StatusBadge.astro';
+
 interface Props {
   service: {
     name: string;
@@ -44,7 +46,7 @@ const borderClass = {
 //   < 50ms  → verde  (saludable)
 // 50-150ms → amarillo (aceptable pero degradado)
 //   > 150ms → rojo   (lento, posible problema)
-function latencyColor(ms) {
+function latencyColor(ms: number | null) {
   if (ms === null) return '#6B7280'; // gris cuando no hay dato
   if (ms < 50) return '#22C55E';    // status-up green
   if (ms < 150) return '#FACC15';   // status-degraded yellow

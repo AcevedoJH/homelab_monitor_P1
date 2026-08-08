@@ -104,9 +104,11 @@ const fmtTime = (iso: string) => {
   </div>
 </header>
 
-<script is:inline>
+<script>
   // Pequeña lógica cliente: actualiza el timestamp visible sin recargar la página
-  // (el polling real está en liveMetrics.js, esto es solo UI)
+  // (el polling real está en liveMetrics.js, esto es solo UI).
+  // NOTA: script EXTERNO (sin is:inline) para cumplir con la CSP del frontend
+  // (script-src 'self'): Astro lo empaqueta en un archivo /_astro/*.js.
   const timeEl = document.getElementById('last-updated');
   if (timeEl) {
     const updateClock = () => {

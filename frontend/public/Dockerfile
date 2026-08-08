@@ -65,7 +65,11 @@ FROM nginx:1.27-alpine AS runner
 RUN addgroup -S -g 1001 nodejs && adduser -S -u 1001 -G nodejs nodejs
 
 # Config: sirve el static + proxy inverso /api -> backend (misma origin).
+# nginx.conf se copia a conf.d (se carga como virtual host por defecto) y el
+# snippet security-headers.conf a snippets/ para que nginx.conf lo incluya en
+# los locations de contenido estático (ver comentario de add_header en nginx.conf).
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 
 # ÚNICO artefacto del builder: el build estático optimizado (como
 # .next/static + public en Next.js). Nada de node_modules ni código fuente.

@@ -13,7 +13,9 @@
     "check": "node --check src/index.js"
   },
   "dependencies": {
+    "cors": "^2.8.6",
     "dotenv": "^16.4.5",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "helmet": "^8.3.0"
   }
 }
