@@ -42,6 +42,14 @@ const API_BASE = '/api/v1';
 const MAX_RETRIES = 3;            // reintentos ante fallo de red
 const RETRY_DELAY_MS = 3_000;     // espera entre reintentos
 
+// Cooldown del refresco manual: tiempo mínimo entre dos clics válidos en el
+// botón "Actualizar". Mientras dure, el botón queda deshabilitado (los clicks
+// sobre un botón disabled ni siquiera disparan el listener). Es defensa en
+// profundidad en el cliente: frena clics impulsivos y scripts triviales del
+// navegador. El muro REAL contra bots sin JS es el rate limiter del backend
+// (30 req/min/IP -> 429 + Retry-After), que nunca debe eliminarse.
+const MANUAL_REFRESH_COOLDOWN_MS = 5_000;
+
 // Intervalo de polling en ms. Es mutable porque el usuario puede cambiarlo
 // desde el select #poll-interval del header. Valor por defecto: 30s (coincide
 // con el select marcado como selected en Header.astro).
@@ -54,6 +62,9 @@ let pollTimer = null;             // referencia al setTimeout del próximo poll
 let abortController = null;       // controlador para cancelar fetch en curso
 let retryCount = 0;               // contador de reintentos consecutivos
 let isPolling = false;            // flag para evitar polls concurrentes
+let lastManualRefreshAt = 0;      // ts del último refresco manual válido (cooldown)
+let refreshCooldownTimer = null;  // setTimeout que re-habilita el botón al fin del cooldown
+let nextPollDelayOverrideMs = null; // retardo puntual del próximo poll (p. ej. Retry-After tras un 429)
 
 // Cache de referencias DOM (se obtienen una vez en init)
 let gridEl = null;
@@ -389,6 +400,20 @@ async function fetchMetrics() {
     clearTimeout(timeoutId);
 
     if (!res.ok) {
+      // 429 Too Many Requests: el rate limiter del backend nos pide frenar.
+      // NO es un fallo de red ni del servidor, así que lo marcamos como error
+      // tipado para que poll() NO entre en el bucle de reintentos (reintentar
+      // un 429 amplificaría justo la saturación que el limiter evita) y para
+      // respetar el plazo de Retry-After en el próximo ciclo de polling.
+      if (res.status === 429) {
+        const retryAfterSec = Number(res.headers.get('Retry-After')) || 30;
+        const rateErr = new Error(
+          `Demasiadas peticiones: espera ${retryAfterSec}s e inténtalo de nuevo`
+        );
+        rateErr.isRateLimited = true;
+        rateErr.retryAfterSec = retryAfterSec;
+        throw rateErr;
+      }
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     }
 
@@ -418,6 +443,9 @@ async function poll() {
   // Evita polls concurrentes (si un poll tarda más de 5s por ejemplo)
   if (isPolling) return;
   isPolling = true;
+  // No arrastramos retardos especiales de ciclos anteriores: si este poll
+  // recibe un 429, su catch volverá a fijar el override con Retry-After fresco.
+  nextPollDelayOverrideMs = null;
 
   try {
     const result = await fetchMetrics();
@@ -462,6 +490,19 @@ async function poll() {
     // en pantalla son datos del último poll exitoso, ya no en vivo.
     showBackendAlert(message);
 
+    // 429 (rate limit): el servidor nos pidió esperar. Cortamos sin reintentos
+    // y respetamos Retry-After: el próximo ciclo arrancará cuando toque, no
+    // antes. El finally encadena scheduleNextPoll(), que consumirá el override.
+    if (err instanceof Error && err.isRateLimited) {
+      const waitMs = Math.max(err.retryAfterSec * 1000, RETRY_DELAY_MS);
+      console.warn(
+        `[liveMetrics] Rate limit del servidor: próximo poll en ${Math.round(waitMs / 1000)}s`
+      );
+      retryCount = 0; // el 429 no es un fallo de red; reseteamos reintentos
+      nextPollDelayOverrideMs = waitMs;
+      return;
+    }
+
     if (retryCount < MAX_RETRIES) {
       retryCount++;
       console.warn(`[liveMetrics] Reintentando (${retryCount}/${MAX_RETRIES})...`);
@@ -491,11 +532,15 @@ async function poll() {
 
 // Programa el siguiente poll con setTimeout (evita solapamiento).
 // Usa el intervalo actual (pollIntervalMs), editable desde el select del header.
+// Si un 429 indicó Retry-After, respetamos ese plazo UNA sola vez; después
+// volvemos al intervalo normal elegido por el usuario.
 function scheduleNextPoll() {
   if (pollTimer) clearTimeout(pollTimer);
+  const delay = nextPollDelayOverrideMs ?? pollIntervalMs;
+  nextPollDelayOverrideMs = null; // el override es de un solo uso
   pollTimer = setTimeout(() => {
     poll();
-  }, pollIntervalMs);
+  }, delay);
 }
 
 // ============================================================================
@@ -616,19 +661,49 @@ function init() {
 
   // Botón de refresh manual
   if (refreshBtn) {
+    // Re-habilita el botón y limpia su estado visual de "en cooldown".
+    const enableRefreshBtn = () => {
+      if (refreshCooldownTimer) {
+        clearTimeout(refreshCooldownTimer);
+        refreshCooldownTimer = null;
+      }
+      refreshBtn.disabled = false;
+      refreshBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      refreshBtn.removeAttribute('title');
+    };
+
     refreshBtn.addEventListener('click', async () => {
       if (isPolling) return; // evita doble click / solaparse con un poll en curso
+
+      // Cooldown: máximo un refresco manual cada MANUAL_REFRESH_COOLDOWN_MS.
+      // Como el botón queda disabled durante el cooldown, los clics extra ni
+      // siquiera llegan aquí; esta guarda temporal cubre el caso de invocación
+      // programática (element.click() desde consola, scripts de usuario...).
+      const now = Date.now();
+      if (now - lastManualRefreshAt < MANUAL_REFRESH_COOLDOWN_MS) return;
+      lastManualRefreshAt = now;
+
       refreshBtn.disabled = true;
       refreshBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      refreshBtn.title = `Espera ${MANUAL_REFRESH_COOLDOWN_MS / 1000}s entre actualizaciones`;
       setRefreshSpinner(true);
 
       try {
         await poll(); // un poll inmediato (si auto-refresh está OFF no encadena)
       } finally {
-        refreshBtn.disabled = false;
-        refreshBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        // Restauramos el estado visual según auto-refresh
+        // Restauramos el estado visual según auto-refresh...
         setRefreshSpinner(autoRefreshCb?.checked ?? false);
+
+        // ...y re-habilitamos el botón cuando TERMINE el cooldown (no antes).
+        // Si el poll duró más que el cooldown, se habilita al instante.
+        const remainingMs =
+          MANUAL_REFRESH_COOLDOWN_MS - (Date.now() - lastManualRefreshAt);
+        if (remainingMs > 0) {
+          if (refreshCooldownTimer) clearTimeout(refreshCooldownTimer);
+          refreshCooldownTimer = setTimeout(enableRefreshBtn, remainingMs);
+        } else {
+          enableRefreshBtn();
+        }
       }
     });
   }
@@ -694,6 +769,7 @@ function init() {
 function destroy() {
   isPolling = false;
   if (pollTimer) clearTimeout(pollTimer);
+  if (refreshCooldownTimer) clearTimeout(refreshCooldownTimer);
   if (abortController) abortController.abort();
   window.removeEventListener('beforeunload', destroy);
 }
