@@ -248,6 +248,8 @@ npm start        # Node en http://localhost:3000
 
 ---
 
-## 📄 Licencia
+## 📄 Enlaces
 
-MIT
+- Monitoreo homelab: https://homelab-monitor.acevedojavier.dev
+
+© 2026 — Javier Acevedo
