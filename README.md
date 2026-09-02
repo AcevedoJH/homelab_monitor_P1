@@ -49,6 +49,62 @@ bajo cualquier dominio.
 
 ---
 
+## 🤖 CI/CD — GitHub Actions
+
+El repositorio incluye un pipeline de integración y despliegue continuo en
+`.github/workflows/deploy.yml` (`CI/CD Pipeline - Home Lab Monitor`) que se
+dispara en cualquier `push` o `pull_request` a `main`. Subir código a `main`
+equivale a desplegar: cada cambio validado se publica automáticamente en el
+homelab sin intervención manual.
+
+### Flujo del pipeline
+
+```
+push / PR → main
+   │
+   ├─ 1. quality-check   ← checkeo nivel audit-grade
+   │       valida la sintaxis de Docker Compose (docker compose config)
+   │
+   └─ 2. deploy          ← solo push a main y requiere que quality-check pase
+           instala cloudflared → configura SSH por túnel → ejecuta en el servidor:
+           git pull && docker compose up -d --build && docker image prune -f
+```
+
+### Despliegue sin abrir puertos (Cloudflare Tunnel)
+
+El servidor del homelab **no expone ningún puerto en el router doméstico**. En
+lugar de abrir el puerto 22 o redirigir tráfico entrante, el runner de GitHub se
+conecta por SSH a través de un **túnel outbound de cloudflared**
+(`ProxyCommand cloudflared access ssh --hostname %h`, conectando al
+**`tcp://localhost:22`** del servidor).
+
+Esto es independiente del túnel que sirve la web (`localhost:4321`): el de
+despliegue solo abre una conexión saliente hacia Cloudflare, así que el router
+no necesita ningún puerto abierto. La llave SSH privada se guarda como secreto de
+GitHub y nunca viaja en el repositorio.
+
+El workflow usa los siguientes secretos:
+
+| Secreto | Descripción |
+|---|---|
+| `SERVER_SSH_KEY` | Llave SSH privada de despliegue |
+| `SERVER_HOST` | Hostname del túnel Cloudflare para SSH |
+| `SERVER_USER` | Usuario SSH en el servidor |
+| `SERVER_PORT` | Puerto SSH a través del túnel (`22`) |
+
+### Pasos en el servidor
+
+Tras conectar por SSH, el pipeline ejecuta en `/opt/homelab-monitor`:
+
+```bash
+git pull origin main
+docker compose down
+docker compose up -d --build
+docker image prune -f
+```
+
+---
+
 ## 🏗️ Arquitectura
 
 ```
@@ -242,7 +298,6 @@ npm start        # Node en http://localhost:3000
 - **Persistencia histórica**: almacenar métricas en SQLite o InfluxDB para gráficos de tendencias.
 - **Sondeo en background**: ejecutar pings en un intervalo interno y servir caché en `/api/metrics` (evitar pings por cada petición).
 - **Tests automatizados**: supertest para el backend, Vitest para utilidades.
-- **Docker**: `Dockerfile` + `docker-compose.yml` para despliegue containerizado.
 - **Autenticación**: proteger la API con token o basic auth si se expone públicamente.
 - **Notificaciones**: alertas por Telegram/Discord cuando un servicio cambia a `down`.
 
