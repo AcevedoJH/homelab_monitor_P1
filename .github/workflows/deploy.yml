@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+# Suprimir avisos de deprecación ajustando el entorno de ejecución de Node.js en los runners
+env:
+  ACTIONS_RUNNER_FORCE_NODE24: true
+
 jobs:
   # JOB 1: Verificación de sintaxis y calidad de Docker Compose
   quality-check:
@@ -16,7 +20,11 @@ jobs:
 
     steps:
       - name: Checkout del Código
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            docker-compose.yml
+            docker-compose.yaml
 
       - name: Validar Sintaxis de Docker Compose
         run: |
@@ -31,7 +39,7 @@ jobs:
 
     steps:
       - name: Checkout del Código
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: Instalar Cloudflare CLI (cloudflared)
         run: |
@@ -44,7 +52,7 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           
-          # Cargar la llave privada
+          # Guardar la llave privada de despliegue desde los secretos de GitHub
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           
