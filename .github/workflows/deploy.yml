@@ -1,59 +1,82 @@
-name: Production CI/CD Pipeline
+name: CI/CD Pipeline - Home Lab Monitor
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
-# Definición de variables de entorno globales
+# Forzar el motor de executor de GitHub Actions a Node 24
+# (Node 20 quedó EOL en abril 2026 y sin soporte en la plataforma)
 env:
-  # Forzar el motor de ejecución de GitHub Actions a Node 24 (Previene deprecación de Node 20)
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-  NODE_VERSION: "24"
 
 jobs:
+  # JOB 1: Verificación de sintaxis y calidad de Docker Compose
   quality-check:
-    name: Code Audit & Build Check
+    name: Calidad del código y verificación de la compilación
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Checkout Source Code
+      - name: Checkout del Código
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            docker-compose.yml
+            docker-compose.yaml
+
+      - name: Validar Sintaxis de Docker Compose
+        run: |
+          docker compose config
+
+  # JOB 2: Despliegue seguro vía Cloudflare Tunnel (SSH Nativo)
+  deploy:
+    name: Implementar en el servidor de producción
+    needs: quality-check
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del Código
         uses: actions/checkout@v4
 
-      - name: Setup Node.js Environment
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
+      - name: Instalar Cloudflare CLI (cloudflared)
+        run: |
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+          rm cloudflared.deb
 
-      - name: Install Dependencies
-        run: npm ci
+      - name: Configurar llaves y cliente SSH con ProxyCommand
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
 
-      - name: Astro Typecheck & Validation
-        run: npx astro check || echo "Skipping typecheck if not configured"
+          # Guardar la llave privada de despliegue desde los secretos de GitHub
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
 
-      - name: Dry-Run Build Verification
-        run: npm run build
+          # Configurar la regla SSH para enrutar a través de cloudflared
+          cat <<'EOF' > ~/.ssh/config
+          Host production-server
+              HostName ${{ secrets.SERVER_HOST }}
+              User ${{ secrets.SERVER_USER }}
+              Port ${{ secrets.SERVER_PORT }}
+              IdentityFile ~/.ssh/deploy_key
+              StrictHostKeyChecking no
+              UserKnownHostsFile /dev/null
+              ProxyCommand cloudflared access ssh --hostname %h
+          EOF
+          chmod 600 ~/.ssh/config
 
-  deploy:
-    name: Secure SSH Deployment via Cloudflare Tunnel
-    needs: quality-check
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Deploy to Self-Hosted Server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: |
+      - name: Ejecutar despliegue vía SSH en el servidor
+        run: |
+          ssh production-server << 'EOF'
             set -e
-            cd /opt/portfolio-astro
+            cd /opt/homelab-monitor
             git pull origin main
             docker compose down
             docker compose up -d --build
             docker image prune -f
+          EOF
