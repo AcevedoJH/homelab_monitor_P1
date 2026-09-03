@@ -8,7 +8,7 @@
 # ============================================================================
 
 # --- Imagen base ligera (solo runtime, sin build tools) ---
-FROM node:20-alpine
+FROM node:24-alpine
 
 # Directorio de trabajo dentro del contenedor
 WORKDIR /app
