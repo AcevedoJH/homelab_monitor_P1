@@ -1,4 +1,4 @@
-name: CI/CD Pipeline - Home Lab Monitor
+name: CI/CD Pipeline - HomeLab_Monitor
 
 on:
   push:
@@ -8,9 +8,13 @@ on:
     branches:
       - main
 
-# Suprimir avisos de deprecación ajustando el entorno de ejecución de Node.js en los runners
+  workflow_dispatch:
+
+# Definición de variables de entorno globales
 env:
-  ACTIONS_RUNNER_FORCE_NODE24: true
+  # Forzar el motor de ejecución de GitHub Actions a Node 24 (Previene deprecación de Node 20)
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NODE_VERSION: "24"
 
 jobs:
   # JOB 1: Verificación de sintaxis y calidad de Docker Compose

@@ -14,7 +14,7 @@
 # ============================================================================
 
 # ------------------ STAGE 1: deps (dependencias) ------------------
-FROM node:20-alpine AS deps
+FROM node:24-alpine AS deps
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 
 # ------------------ STAGE 2: builder (compilación) ------------------
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 # Heap V8 ACOTADO durante el build (2 GB).
 # Evita que Astro/Vite consuman toda la RAM del servidor y lancen
