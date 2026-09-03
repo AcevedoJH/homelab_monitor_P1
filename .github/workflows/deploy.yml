@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout del Código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           sparse-checkout: |
             docker-compose.yml
@@ -41,7 +41,7 @@ jobs:
 
     steps:
       - name: Checkout del Código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Instalar Cloudflare CLI (cloudflared)
         run: |
