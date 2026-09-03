@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 # Forzar el motor de executor de GitHub Actions a Node 24
 # (Node 20 quedó EOL en abril 2026 y sin soporte en la plataforma)
